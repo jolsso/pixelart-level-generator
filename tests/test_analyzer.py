@@ -1,4 +1,3 @@
-import json
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -53,8 +52,6 @@ def test_build_catalog_produces_entries(tmp_path):
         catalog = build_catalog(data_dir=tmp_path, host="http://localhost:11434", model="qwen2-vl")
 
     assert len(catalog["tiles"]) == 3
-    assert catalog["version"] == 1
-    assert "generated_at" in catalog
 
 
 def test_build_catalog_tile_fields(tmp_path):
@@ -83,11 +80,12 @@ def test_build_catalog_skips_already_analyzed(tmp_path):
         catalog1 = build_catalog(data_dir=tmp_path, host="http://localhost:11434", model="qwen2-vl")
         assert mock_analyze.call_count == 3
 
+        existing_ids = set(catalog1["tiles"].keys())
         catalog2 = build_catalog(
             data_dir=tmp_path,
             host="http://localhost:11434",
             model="qwen2-vl",
-            existing=catalog1,
+            existing_ids=existing_ids,
         )
         assert mock_analyze.call_count == 3  # unchanged
 

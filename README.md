@@ -6,7 +6,7 @@ A Python package for cataloging pixel art tile assets and compositing them into 
 
 `pixelart_map` has three responsibilities:
 
-1. **Offline analyzer** — scans pixel art tile PNGs using a local Ollama vision model (Qwen2-VL) and produces a `catalog.json` describing every tile
+1. **Offline analyzer** — scans pixel art tile PNGs using a local Ollama vision model (Qwen2-VL) and produces a `catalog.db` describing every tile
 2. **Catalog API** — query interface over the catalog (filter by theme, map type, semantic type, or free-text search)
 3. **Renderer** — composites a list of tile placements into a PNG image using Pillow
 
@@ -41,7 +41,7 @@ pip install -e ".[dev]"
 ### Build the catalog (offline, one-time)
 
 ```bash
-pixelart-analyze --data-dir ./data --output catalog.json
+pixelart-analyze --data-dir ./data --output catalog.db
 ```
 
 Re-runs are incremental — already-analyzed tiles are skipped.
@@ -85,7 +85,7 @@ result.tilemap    # placements with resolved theme/semantic_type/dimensions
 | Env var | Default | Purpose |
 |---|---|---|
 | `PIXELART_DATA_DIR` | *(required at render time)* | Root path of the asset folder |
-| `PIXELART_CATALOG_PATH` | `catalog.json` next to package root | Override catalog location |
+| `PIXELART_CATALOG_PATH` | `catalog.db` next to package root | Override catalog location |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
 | `OLLAMA_MODEL` | `qwen2.5vl:7b` | Vision model for tile analysis |
 
@@ -112,9 +112,9 @@ The pixel art assets are **not included** in this repository and must be purchas
    └── modernexteriors-win/
    ```
 
-3. Run the analyzer to build `catalog.json`:
+3. Run the analyzer to build `catalog.db`:
    ```bash
-   pixelart-analyze --data-dir ./data --output catalog.json
+   pixelart-analyze --data-dir ./data --output catalog.db
    ```
 
 ## Asset credits

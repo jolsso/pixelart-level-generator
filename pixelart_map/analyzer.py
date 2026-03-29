@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import logging
 import os
 import re
-from datetime import datetime, timezone
+from collections.abc import Callable
 from pathlib import Path
 
 from PIL import Image
@@ -15,6 +14,7 @@ from tqdm import tqdm
 from pixelart_map._filename import parse_exterior_filename
 from pixelart_map._ollama import analyze_tile
 from pixelart_map._theme import strip_theme_name
+from pixelart_map.catalog import insert_tile, open_catalog_db
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,6 @@ def _collect_pngs(data_dir: Path) -> list[tuple[Path, str, int]]:
             grid_unit = _grid_unit_from_path(res_dir)
             if grid_unit is None:
                 continue
-            # Find the one "shadowless" + "singles" parent folder at this resolution
             for variant_dir in sorted(res_dir.iterdir()):
                 if not variant_dir.is_dir():
                     continue
@@ -75,7 +74,6 @@ def _collect_pngs(data_dir: Path) -> list[tuple[Path, str, int]]:
             grid_unit = _grid_unit_from_path(res_dir)
             if grid_unit is None:
                 continue
-            # Find the ME_Theme_Sorter folder inside this resolution dir
             for sub in sorted(res_dir.iterdir()):
                 if not sub.is_dir() or not sub.name.startswith("ME_Theme_Sorter_"):
                     continue
@@ -93,21 +91,28 @@ def build_catalog(
     data_dir: Path,
     host: str,
     model: str,
-    existing: dict | None = None,
+    existing_ids: set[str] | None = None,
+    on_tile: Callable[[dict], None] | None = None,
 ) -> dict:
-    """Analyze tiles and return a catalog dict. Pass existing to enable incremental updates."""
-    if existing is None:
-        existing = {"version": 1, "generated_at": "", "tiles": {}}
+    """Analyze tiles and return a catalog dict.
 
-    tiles = existing["tiles"].copy()
+    Args:
+        existing_ids: Set of tile IDs already in the catalog — those tiles are skipped.
+        on_tile: Optional callback invoked with each new tile dict as it is analyzed.
+                 Use this for incremental persistence (e.g. write to SQLite per tile).
+    """
+    if existing_ids is None:
+        existing_ids = set()
+
     pngs = _collect_pngs(data_dir)
-
-    new_tiles = [
+    new_pngs = [
         (p, mt, gu) for p, mt, gu in pngs
-        if compute_tile_id(str(p.relative_to(data_dir))) not in tiles
+        if compute_tile_id(str(p.relative_to(data_dir))) not in existing_ids
     ]
 
-    for abs_path, map_type, grid_unit in tqdm(new_tiles, desc="Analyzing tiles"):
+    tiles: dict[str, dict] = {}
+
+    for abs_path, map_type, grid_unit in tqdm(new_pngs, desc="Analyzing tiles"):
         rel_path = str(abs_path.relative_to(data_dir))
         tile_id = compute_tile_id(rel_path)
         theme = strip_theme_name(abs_path.parent.name)
@@ -115,7 +120,6 @@ def build_catalog(
         with Image.open(abs_path) as img:
             pixel_width, pixel_height = img.size
 
-        # Try filename-based extraction first (exterior tiles only)
         result = parse_exterior_filename(abs_path.stem, theme)
         if result is None:
             result = analyze_tile(abs_path, host=host, model=model)
@@ -123,7 +127,7 @@ def build_catalog(
             logger.warning("Skipping tile (analysis failed): %s", rel_path)
             continue
 
-        tiles[tile_id] = {
+        tile = {
             "id": tile_id,
             "path": rel_path,
             "theme": theme,
@@ -135,12 +139,11 @@ def build_catalog(
             "semantic_type": result["semantic_type"],
             "tags": result["tags"],
         }
+        tiles[tile_id] = tile
+        if on_tile is not None:
+            on_tile(tile)
 
-    return {
-        "version": 1,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "tiles": tiles,
-    }
+    return {"tiles": tiles}
 
 
 def _list_ollama_models(host: str) -> list[str]:
@@ -182,7 +185,7 @@ def _pick_model(host: str, default: str) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Analyze pixel art tiles and build catalog.json")
+    parser = argparse.ArgumentParser(description="Analyze pixel art tiles and build catalog.db")
     parser.add_argument(
         "--data-dir",
         default=os.environ.get("PIXELART_DATA_DIR", "./data"),
@@ -190,8 +193,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--output",
-        default="catalog.json",
-        help="Output path for catalog.json (default: catalog.json)",
+        default="catalog.db",
+        help="Output path for catalog.db (default: catalog.db)",
     )
     parser.add_argument(
         "--host",
@@ -210,17 +213,28 @@ def main() -> None:
     model = args.model if args.model is not None else _pick_model(host, fallback)
 
     data_dir = Path(args.data_dir)
-    output_path = Path(args.output)
+    db_path = Path(args.output)
 
-    existing = None
-    if output_path.exists():
-        existing = json.loads(output_path.read_text(encoding="utf-8"))
-        print(f"Loaded existing catalog: {len(existing['tiles'])} tiles")
+    conn = open_catalog_db(db_path)
+    existing_ids = {row[0] for row in conn.execute("SELECT id FROM tiles")}
+    if existing_ids:
+        print(f"Resuming from existing catalog: {len(existing_ids):,} tiles already analyzed")
 
-    catalog = build_catalog(data_dir=data_dir, host=host, model=model, existing=existing)
+    def _write_tile(tile: dict) -> None:
+        insert_tile(conn, tile)
+        conn.commit()
 
-    output_path.write_text(json.dumps(catalog, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"Wrote {len(catalog['tiles'])} tiles to {output_path}")
+    build_catalog(
+        data_dir=data_dir,
+        host=host,
+        model=model,
+        existing_ids=existing_ids,
+        on_tile=_write_tile,
+    )
+
+    total = conn.execute("SELECT COUNT(*) FROM tiles").fetchone()[0]
+    conn.close()
+    print(f"catalog.db contains {total:,} tiles → {db_path}")
 
 
 if __name__ == "__main__":
