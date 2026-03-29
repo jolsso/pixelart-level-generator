@@ -1,5 +1,6 @@
 import pytest
 from pixelart_map.catalog import Catalog, TileInfo
+from pixelart_map import get_catalog, render_map
 
 TILE_ID_1 = "aaaa000000000000000000000000000000000000000000000000000000000001"
 TILE_ID_2 = "bbbb000000000000000000000000000000000000000000000000000000000002"
@@ -84,3 +85,22 @@ def test_search_case_insensitive(sample_catalog_path):
 def test_search_no_results(sample_catalog_path):
     catalog = Catalog(sample_catalog_path)
     assert catalog.search("xyzzy") == []
+
+
+def test_public_imports():
+    """Both public functions are importable from pixelart_map."""
+    assert callable(get_catalog)
+    assert callable(render_map)
+
+
+def test_get_catalog_uses_env_var(sample_catalog_path, monkeypatch):
+    monkeypatch.setenv("PIXELART_CATALOG_PATH", str(sample_catalog_path))
+    catalog = get_catalog()
+    assert len(catalog.themes()) > 0
+
+
+def test_get_catalog_called_twice_returns_same_data(sample_catalog_path, monkeypatch):
+    monkeypatch.setenv("PIXELART_CATALOG_PATH", str(sample_catalog_path))
+    c1 = get_catalog()
+    c2 = get_catalog()
+    assert c1.themes() == c2.themes()
