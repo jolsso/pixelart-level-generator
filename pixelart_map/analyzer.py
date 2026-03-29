@@ -11,6 +11,7 @@ from pathlib import Path
 from PIL import Image
 from tqdm import tqdm
 
+from pixelart_map._filename import parse_exterior_filename
 from pixelart_map._ollama import analyze_tile
 from pixelart_map._theme import strip_theme_name
 
@@ -74,7 +75,10 @@ def build_catalog(
         with Image.open(abs_path) as img:
             pixel_width, pixel_height = img.size
 
-        result = analyze_tile(abs_path, host=host, model=model)
+        # Try filename-based extraction first (exterior tiles only)
+        result = parse_exterior_filename(abs_path.stem, theme)
+        if result is None:
+            result = analyze_tile(abs_path, host=host, model=model)
         if result is None:
             logger.warning("Skipping tile (analysis failed): %s", rel_path)
             continue
