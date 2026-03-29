@@ -103,6 +103,44 @@ def build_catalog(
     }
 
 
+def _list_ollama_models(host: str) -> list[str]:
+    """Return installed Ollama model names, or [] if Ollama is unreachable."""
+    import httpx
+    try:
+        response = httpx.get(f"{host}/api/tags", timeout=5.0)
+        response.raise_for_status()
+        return [m["name"] for m in response.json().get("models", [])]
+    except Exception as e:
+        logger.debug("Could not reach Ollama at %s: %s", host, e)
+        return []
+
+
+def _pick_model(host: str, default: str) -> str:
+    """Interactively pick an installed Ollama model, or fall back to default."""
+    models = _list_ollama_models(host)
+
+    if not models:
+        print(f"Could not reach Ollama — using model: {default}")
+        return default
+
+    if len(models) == 1:
+        print(f"Using installed model: {models[0]}")
+        return models[0]
+
+    print("\nInstalled Ollama models:")
+    for i, name in enumerate(models, 1):
+        print(f"  {i}) {name}")
+    print(f"  (default: {default})")
+
+    while True:
+        raw = input(f"Pick a model [1-{len(models)}, or Enter for default]: ").strip()
+        if not raw:
+            return default
+        if raw.isdigit() and 1 <= int(raw) <= len(models):
+            return models[int(raw) - 1]
+        print(f"  Enter a number between 1 and {len(models)}, or press Enter.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze pixel art tiles and build catalog.json")
     parser.add_argument(
@@ -122,10 +160,14 @@ def main() -> None:
     )
     parser.add_argument(
         "--model",
-        default=os.environ.get("OLLAMA_MODEL", "qwen2.5vl:7b"),
-        help="Ollama model name",
+        default=None,
+        help="Ollama model name (default: auto-picked from installed models)",
     )
     args = parser.parse_args()
+
+    host = args.host
+    fallback = os.environ.get("OLLAMA_MODEL", "qwen2.5vl:7b")
+    model = args.model if args.model is not None else _pick_model(host, fallback)
 
     data_dir = Path(args.data_dir)
     output_path = Path(args.output)
@@ -135,7 +177,7 @@ def main() -> None:
         existing = json.loads(output_path.read_text(encoding="utf-8"))
         print(f"Loaded existing catalog: {len(existing['tiles'])} tiles")
 
-    catalog = build_catalog(data_dir=data_dir, host=args.host, model=args.model, existing=existing)
+    catalog = build_catalog(data_dir=data_dir, host=host, model=model, existing=existing)
 
     output_path.write_text(json.dumps(catalog, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Wrote {len(catalog['tiles'])} tiles to {output_path}")
