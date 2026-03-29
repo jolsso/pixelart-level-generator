@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "generated_at": "2026-03-29T00:00:00",
+  "tiles": {
+    "aaaa000000000000000000000000000000000000000000000000000000000001": {
+      "id": "aaaa000000000000000000000000000000000000000000000000000000000001",
+      "path": "moderninteriors-win/1_Interiors/48x48/Theme_Sorter_Shadowless_Singles_48x48/5_Classroom_and_Library_Singles_Shadowless_48x48/tile_01.png",
+      "theme": "Classroom_and_Library",
+      "map_type": "interior",
+      "grid_unit": 48,
+      "pixel_width": 48,
+      "pixel_height": 48,
+      "description": "A wooden school desk with a chair, top-down view",
+      "semantic_type": "furniture",
+      "tags": ["desk", "chair", "school", "wooden"]
+    },
+    "bbbb000000000000000000000000000000000000000000000000000000000002": {
+      "id": "bbbb000000000000000000000000000000000000000000000000000000000002",
+      "path": "moderninteriors-win/1_Interiors/48x48/Theme_Sorter_Shadowless_Singles_48x48/5_Classroom_and_Library_Singles_Shadowless_48x48/tile_02.png",
+      "theme": "Classroom_and_Library",
+      "map_type": "interior",
+      "grid_unit": 48,
+      "pixel_width": 48,
+      "pixel_height": 96,
+      "description": "A tall bookshelf, top-down view",
+      "semantic_type": "furniture",
+      "tags": ["bookshelf", "school", "library", "tall"]
+    },
+    "cccc000000000000000000000000000000000000000000000000000000000003": {
+      "id": "cccc000000000000000000000000000000000000000000000000000000000003",
+      "path": "modernexteriors-win/Modern_Exteriors_16x16/ME_Theme_Sorter_16x16/16_Office_Singles_16x16/tile_01.png",
+      "theme": "Office",
+      "map_type": "exterior",
+      "grid_unit": 16,
+      "pixel_width": 16,
+      "pixel_height": 16,
+      "description": "Office building facade, top-down view",
+      "semantic_type": "building",
+      "tags": ["office", "building", "facade"]
+    }
+  }
+}
