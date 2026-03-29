@@ -26,7 +26,7 @@ pytest tests/test_renderer.py -v
 # Run a single test
 pytest tests/test_theme.py::test_strip_theme_name[5_Classroom_and_Library_Singles_Shadowless_48x48-Classroom_and_Library] -v
 
-# Run the analyzer (requires Ollama running + qwen2-vl pulled + data/ present)
+# Run the analyzer (requires Ollama running + qwen2.5vl:7b pulled + data/ present)
 python -m pixelart_map.analyzer --data-dir ./data --output catalog.json
 
 # Or via installed entrypoint
@@ -77,7 +77,7 @@ PNG bytes + tilemap metadata  →  game engine serves as HTTP response
 | `PIXELART_DATA_DIR` | *(required at render time)* | Root path of the asset folder |
 | `PIXELART_CATALOG_PATH` | `catalog.json` next to package root | Override catalog location |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `qwen2-vl` | Vision model for tile analysis |
+| `OLLAMA_MODEL` | `qwen2.5vl:7b` | Vision model for tile analysis |
 
 ## Testing
 
