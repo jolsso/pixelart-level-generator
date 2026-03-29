@@ -44,7 +44,7 @@ The package has five focused modules plus a public API surface:
 | `pixelart_map/renderer.py` | `render_map()`, `RenderResult`, module-level LRU image cache (cap 256) |
 | `pixelart_map/_theme.py` | `strip_theme_name(folder)` — strip/normalize tile folder names |
 | `pixelart_map/_ollama.py` | `analyze_tile()` — httpx POST to Ollama, returns `dict | None` |
-| `pixelart_map/analyzer.py` | CLI: walks two specific subtrees, calls `_ollama`, writes `catalog.json` |
+| `pixelart_map/analyzer.py` | CLI: dynamically discovers singles subtrees, calls `_ollama`, writes `catalog.json` |
 
 **The package is a library + offline CLI only — no HTTP server.** The game engine (a separate project) installs this package and owns all LLM map-generation logic and HTTP endpoints.
 
@@ -64,7 +64,7 @@ PNG bytes + tilemap metadata  →  game engine serves as HTTP response
 
 - **Tile ID** = full 64-char SHA-256 of the relative path string. Used as both the catalog dict key and `TileInfo.id`.
 - **Analyzer dedup** = key lookup in existing catalog dict. Re-runs are incremental.
-- **Analyzer walk scope** is restricted to two specific subtrees — do not walk all of `data/`.
+- **Analyzer walk scope** is dynamic — it auto-discovers all qualifying singles subtrees under `data/`. Interior: all `Theme_Sorter_Shadowless_Singles` variants at every available resolution. Exterior: all `ME_Theme_Sorter_NNxNN` variants at every available resolution; root-level spritesheets directly in `ME_Theme_Sorter_NNxNN` are skipped. `Complete_Singles`, `Black_Shadow`, autotiles, and character folders are all excluded.
 - **`data_dir` has no default in `render_map()`** — must be passed explicitly or via `PIXELART_DATA_DIR`; raises `ValueError` immediately if absent.
 - **LRU image cache** is module-level in `renderer.py`, persists across `render_map()` calls within the same process. Call `renderer._load_image.cache_clear()` in tests that check cache hit counts.
 - **`_theme.py`** handles several typos in the original asset pack directory names (e.g. `SIngles`, `MIlitary`).
@@ -85,9 +85,15 @@ Tests create all PNG fixtures programmatically with Pillow and mock Ollama via `
 
 ## Asset Data
 
-`data/` is gitignored (third-party pixel art from limezu.itch.io). Two subtrees are scanned by the analyzer:
+`data/` is gitignored (third-party pixel art from limezu.itch.io). The analyzer dynamically discovers all qualifying subtrees:
 
-- `data/moderninteriors-win/1_Interiors/48x48/Theme_Sorter_Shadowless_Singles_48x48/` — interior tiles, `grid_unit=48`
-- `data/modernexteriors-win/Modern_Exteriors_16x16/ME_Theme_Sorter_16x16/` — exterior tiles, `grid_unit=16`
+**Interiors** — `moderninteriors-win/1_Interiors/{16x16,32x32,48x48}/Theme_Sorter_Shadowless_Singles_{RES}/`
+- Shadowless variant only (no Black Shadow or base shadow duplicates)
+- ~5 330 tiles per resolution × 3 = ~16 000 interior tiles total
 
-Only `*_Singles_*` subdirectories contain individual tile PNGs. Spritesheets, characters, autotiles, and character generator parts are excluded.
+**Exteriors** — `modernexteriors-win/Modern_Exteriors_{RES}/ME_Theme_Sorter_{RES}/*/`
+- All 24 theme subdirectories per resolution; root-level spritesheet PNGs skipped
+- ~6 200 tiles per resolution × 3 = ~18 600 exterior tiles total
+- All exterior tiles resolved via filename parsing (no Ollama needed)
+
+The same logical tile exists at three resolutions (16, 32, 48). `grid_unit` in each catalog entry reflects the tile's pixel size, letting the game engine filter by resolution.

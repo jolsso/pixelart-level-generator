@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,35 +18,74 @@ from pixelart_map._theme import strip_theme_name
 
 logger = logging.getLogger(__name__)
 
-# Subtrees to scan, relative to data_dir
-_SCAN_SUBTREES = [
-    (
-        Path("moderninteriors-win/1_Interiors/48x48/Theme_Sorter_Shadowless_Singles_48x48"),
-        "interior",
-        48,
-    ),
-    (
-        Path("modernexteriors-win/Modern_Exteriors_16x16/ME_Theme_Sorter_16x16"),
-        "exterior",
-        16,
-    ),
-]
+_RESOLUTION_RE = re.compile(r"(\d+)x\d+")
 
 
 def compute_tile_id(relative_path: str) -> str:
     return hashlib.sha256(relative_path.encode()).hexdigest()
 
 
+def _grid_unit_from_path(path: Path) -> int | None:
+    """Extract grid unit (e.g. 16, 32, 48) from the first NNxNN token in a path."""
+    for part in path.parts:
+        m = _RESOLUTION_RE.search(part)
+        if m:
+            return int(m.group(1))
+    return None
+
+
 def _collect_pngs(data_dir: Path) -> list[tuple[Path, str, int]]:
-    """Return list of (abs_path, map_type, grid_unit) for all PNGs in scan subtrees."""
-    results = []
-    for subtree, map_type, grid_unit in _SCAN_SUBTREES:
-        root = data_dir / subtree
-        if not root.exists():
-            logger.warning("Subtree not found, skipping: %s", root)
-            continue
-        for png in sorted(root.rglob("*.png")):
-            results.append((png, map_type, grid_unit))
+    """Return list of (abs_path, map_type, grid_unit) for all singles PNGs.
+
+    Interior: all Theme_Sorter_Shadowless_Singles subtrees (16x16, 32x32, 48x48).
+    Exterior: all ME_Theme_Sorter subtrees (16x16, 32x32, 48x48); root-level
+              spritesheets directly inside ME_Theme_Sorter are skipped.
+    """
+    results: list[tuple[Path, str, int]] = []
+
+    # ── Interiors: Shadowless Singles at every available resolution ──────────
+    interiors_root = data_dir / "moderninteriors-win" / "1_Interiors"
+    if not interiors_root.exists():
+        logger.warning("Interior root not found: %s", interiors_root)
+    else:
+        for res_dir in sorted(interiors_root.iterdir()):
+            if not res_dir.is_dir():
+                continue
+            grid_unit = _grid_unit_from_path(res_dir)
+            if grid_unit is None:
+                continue
+            # Find the one "shadowless" + "singles" parent folder at this resolution
+            for variant_dir in sorted(res_dir.iterdir()):
+                if not variant_dir.is_dir():
+                    continue
+                vname = variant_dir.name.lower()
+                if "shadowless" in vname and "singles" in vname:
+                    for png in sorted(variant_dir.rglob("*.png")):
+                        results.append((png, "interior", grid_unit))
+                    break  # only one shadowless-singles variant per resolution
+
+    # ── Exteriors: ME_Theme_Sorter at every available resolution ─────────────
+    exteriors_root = data_dir / "modernexteriors-win"
+    if not exteriors_root.exists():
+        logger.warning("Exterior root not found: %s", exteriors_root)
+    else:
+        for res_dir in sorted(exteriors_root.iterdir()):
+            if not res_dir.is_dir() or not res_dir.name.startswith("Modern_Exteriors_"):
+                continue
+            grid_unit = _grid_unit_from_path(res_dir)
+            if grid_unit is None:
+                continue
+            # Find the ME_Theme_Sorter folder inside this resolution dir
+            for sub in sorted(res_dir.iterdir()):
+                if not sub.is_dir() or not sub.name.startswith("ME_Theme_Sorter_"):
+                    continue
+                for png in sorted(sub.rglob("*.png")):
+                    # Skip root-level spritesheets (PNGs directly in ME_Theme_Sorter_NNxNN)
+                    if png.parent == sub:
+                        continue
+                    results.append((png, "exterior", grid_unit))
+                break  # only one ME_Theme_Sorter per resolution dir
+
     return results
 
 
