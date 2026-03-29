@@ -97,6 +97,26 @@ No assets or GPU needed — all fixtures are generated programmatically.
 pytest
 ```
 
+## Asset setup
+
+The pixel art assets are **not included** in this repository and must be purchased and set up manually:
+
+1. Buy the asset packs from itch.io:
+   - [Modern Interiors](https://limezu.itch.io/moderninteriors)
+   - [Modern Exteriors](https://limezu.itch.io/modernexteriors)
+
+2. Unzip both packages into the `data/` directory at the repo root:
+   ```
+   data/
+   ├── moderninteriors-win/
+   └── modernexteriors-win/
+   ```
+
+3. Run the analyzer to build `catalog.json`:
+   ```bash
+   pixelart-analyze --data-dir ./data --output catalog.json
+   ```
+
 ## Asset credits
 
-Pixel art assets by [LimeZu](https://limezu.itch.io/) (not included in this repository).
+Pixel art assets by [LimeZu](https://limezu.itch.io/).
