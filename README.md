@@ -15,11 +15,11 @@ The package is consumed by a separate game engine that owns all LLM-based map ge
 ## Prerequisites
 
 - Python ≥ 3.11
-- For the **analyzer only**: Ollama running locally with `qwen2-vl` pulled, and pixel art assets present at `PIXELART_DATA_DIR`
+- For the **analyzer only**: Ollama running locally with `qwen2.5vl:7b` pulled, and pixel art assets present at `PIXELART_DATA_DIR`
 
 ```bash
 ollama serve
-ollama pull qwen2-vl
+ollama pull qwen2.5vl:7b
 ```
 
 ## Installation
@@ -87,7 +87,7 @@ result.tilemap    # placements with resolved theme/semantic_type/dimensions
 | `PIXELART_DATA_DIR` | *(required at render time)* | Root path of the asset folder |
 | `PIXELART_CATALOG_PATH` | `catalog.json` next to package root | Override catalog location |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `qwen2-vl` | Vision model for tile analysis |
+| `OLLAMA_MODEL` | `qwen2.5vl:7b` | Vision model for tile analysis |
 
 ## Running tests
 
@@ -97,6 +97,26 @@ No assets or GPU needed — all fixtures are generated programmatically.
 pytest
 ```
 
+## Asset setup
+
+The pixel art assets are **not included** in this repository and must be purchased and set up manually:
+
+1. Buy the asset packs from itch.io:
+   - [Modern Interiors](https://limezu.itch.io/moderninteriors)
+   - [Modern Exteriors](https://limezu.itch.io/modernexteriors)
+
+2. Unzip both packages into the `data/` directory at the repo root:
+   ```
+   data/
+   ├── moderninteriors-win/
+   └── modernexteriors-win/
+   ```
+
+3. Run the analyzer to build `catalog.json`:
+   ```bash
+   pixelart-analyze --data-dir ./data --output catalog.json
+   ```
+
 ## Asset credits
 
-Pixel art assets by [LimeZu](https://limezu.itch.io/) (not included in this repository).
+Pixel art assets by [LimeZu](https://limezu.itch.io/).

@@ -25,7 +25,7 @@ _REQUIRED_KEYS = {"description", "semantic_type", "tags"}
 def analyze_tile(
     image_path: Path,
     host: str = "http://localhost:11434",
-    model: str = "qwen2-vl",
+    model: str = "qwen2.5vl:7b",
 ) -> dict | None:
     """Call Ollama to describe a tile image. Returns parsed dict or None on failure."""
     image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")

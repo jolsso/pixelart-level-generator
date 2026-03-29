@@ -118,7 +118,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--model",
-        default=os.environ.get("OLLAMA_MODEL", "qwen2-vl"),
+        default=os.environ.get("OLLAMA_MODEL", "qwen2.5vl:7b"),
         help="Ollama model name",
     )
     args = parser.parse_args()
