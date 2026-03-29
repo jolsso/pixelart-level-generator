@@ -3,26 +3,32 @@ from pixelart_map._filename import parse_exterior_filename
 
 
 @pytest.mark.parametrize("stem,theme,expected_object,expected_semantic", [
-    # Standard single-word object
+    # Pattern 1: ME_Singles — standard single-word object
     ("ME_Singles_City_Props_16x16_ATM_1",               "City_Props",           "ATM",                      "prop"),
     ("ME_Singles_City_Props_16x16_Antenna",             "City_Props",           "Antenna",                  "prop"),
     ("ME_Singles_City_Props_16x16_Bench_3",             "City_Props",           "Bench",                    "furniture"),
     ("ME_Singles_City_Props_16x16_Barrel_12",           "City_Props",           "Barrel",                   "prop"),
-    # Multi-word object
+    # Pattern 1: ME_Singles — multi-word object
     ("ME_Singles_School_16x16_Basketball_Ball_1",       "School",               "Basketball ball",          "prop"),
     ("ME_Singles_School_16x16_Basketball_Court_4",      "School",               "Basketball court",         "floor"),
     ("ME_Singles_School_16x16_Clock_Tower_1",           "School",               "Clock tower",              "building"),
-    # Vehicles with direction suffix
+    # Pattern 1: ME_Singles — vehicles with direction suffix
     ("ME_Singles_Vehicles_16x16_Ambulance_Down_1",      "Vehicles",             "Ambulance down",           "vehicle"),
     ("ME_Singles_Vehicles_16x16_Boat_1_Down_2",         "Vehicles",             "Boat 1 down",              "vehicle"),
-    # Terrain
+    # Pattern 1: ME_Singles — terrain / floor / wall
     ("ME_Singles_Terrains_and_Fences_16x16_Deep_Water_1_5", "Terrains_and_Fences", "Deep water 1",         "terrain"),
-    # City terrain with Variation keyword
     ("ME_Singles_City_Terrains_16x16_Asphalt_1_Variation_27", "City_Terrains", "Asphalt 1 variation",      "floor"),
-    # Building
     ("ME_Singles_Generic_Building_16x16_Condo_1_3",     "Generic_Building",     "Condo 1",                  "building"),
-    # Multi-word theme
     ("ME_Singles_Terrains_and_Fences_16x16_Fence_1",    "Terrains_and_Fences",  "Fence",                    "wall"),
+    # Pattern 2: {N}_{Theme}_16x16_{Object} — Beach / Post Office / Military
+    ("21_Beach_16x16_Ball",                             "Beach",                "Ball",                     "prop"),
+    ("21_Beach_16x16_Beach_Sign",                       "Beach",                "Beach sign",               "decoration"),
+    ("21_Beach_16x16_Bamboo_Bar_Counter_1",             "Beach",                "Bamboo bar counter",       "furniture"),
+    ("22_Post_Office_16x16_Big_Blue_Mailbox",           "Post_Office",          "Big blue mailbox",         "prop"),
+    ("23_MIlitary_Base_16x16_Barbed_Wire_1",            "Military_Base",        "Barbed wire",              "prop"),
+    # Pattern 3: {N}_{Theme}_{Object}_16x16 — Additional Houses (resolution suffix)
+    ("24_Additional_Houses_Country_House_16x16",        "Additional_Houses",    "Country house",            "building"),
+    ("24_Additional_Houses_Fence_1_Bottom_Left_16x16",  "Additional_Houses",    "Fence",                    "wall"),
 ])
 def test_parse_exterior_filename(stem, theme, expected_object, expected_semantic):
     result = parse_exterior_filename(stem, theme)

@@ -1,20 +1,30 @@
 """
 Filename-based metadata extraction for exterior tiles.
 
-Exterior tiles follow the pattern:
-    ME_Singles_{Theme}_16x16_{ObjectWords}_{N}.png
+Three filename patterns exist in the asset pack:
 
-This lets us derive description, semantic_type, and tags from the filename
-alone, skipping the Ollama vision call for the ~6000 exterior tiles.
-Interior tiles use a bare {Theme}_{N}.png pattern with no object info,
-so they always fall through to Ollama.
+  Pattern 1 (themes 1-20, ~5 400 files):
+      ME_Singles_{Theme}_{NNxNN}_{ObjectWords}[_{N}].png
+
+  Pattern 2 (themes 21-23, ~670 files):
+      {N}_{Theme}_{NNxNN}_{ObjectWords}.png
+
+  Pattern 3 (theme 24, ~220 files):
+      {N}_{Theme}_{ObjectWords}_{NNxNN}.png   (resolution suffix, no object after it)
+
+All three let us derive description, semantic_type, and tags from the filename
+alone, skipping the Ollama vision call for all ~6 000 exterior tiles.
+Interior tiles use a bare {Theme}_{N}.png pattern with no object info and
+always fall through to Ollama.
 """
 from __future__ import annotations
 
 import re
 
 _EXTERIOR_PREFIX = re.compile(r"^ME_Singles_", re.IGNORECASE)
-_RESOLUTION = re.compile(r"_\d+x\d+_")
+_NUMERIC_PREFIX = re.compile(r"^\d+_")
+_RESOLUTION_MID = re.compile(r"_\d+x\d+_")   # resolution with object words after
+_RESOLUTION_END = re.compile(r"_\d+x\d+$")    # resolution at end of stem
 _TRAILING_NUMBER = re.compile(r"_\d+$")
 
 # Words to drop when building tags (non-informative noise)
@@ -47,8 +57,7 @@ def parse_exterior_filename(stem: str, theme: str) -> dict | None:
     """Parse an exterior tile filename stem into catalog metadata.
 
     Returns a dict with description/semantic_type/tags, or None if the
-    filename does not match the exterior ME_Singles pattern (falls back
-    to Ollama).
+    filename does not match any known exterior pattern (falls back to Ollama).
 
     Examples:
         'ME_Singles_School_16x16_Basketball_Ball_1', 'School'
@@ -56,25 +65,19 @@ def parse_exterior_filename(stem: str, theme: str) -> dict | None:
         → semantic_type: 'prop'
         → tags: ['basketball', 'ball', 'school']
 
-        'ME_Singles_City_Props_16x16_Antenna', 'City_Props'
-        → description: 'Antenna, top-down view'
+        '21_Beach_16x16_Beach_Sign', 'Beach'
+        → description: 'Beach sign, top-down view'
         → semantic_type: 'prop'
-        → tags: ['antenna', 'city', 'props']
+        → tags: ['beach', 'sign']
+
+        '24_Additional_Houses_Country_House_16x16', 'Additional_Houses'
+        → description: 'Country house, top-down view'
+        → semantic_type: 'building'
+        → tags: ['country', 'house', 'additional', 'houses']
     """
-    if not _EXTERIOR_PREFIX.match(stem):
+    object_part = _extract_object_part(stem, theme)
+    if object_part is None:
         return None
-
-    # Locate the _NNxNN_ separator
-    m = _RESOLUTION.search(stem)
-    if not m:
-        return None
-
-    object_part = stem[m.end():]
-    if not object_part:
-        return None
-
-    # Strip trailing variant number (_1, _27, etc.)
-    object_part = _TRAILING_NUMBER.sub("", object_part)
 
     # Build description from the object words
     object_words = object_part.replace("_", " ").strip()
@@ -104,6 +107,45 @@ def parse_exterior_filename(stem: str, theme: str) -> dict | None:
         "semantic_type": semantic_type,
         "tags": tags,
     }
+
+
+def _extract_object_part(stem: str, theme: str) -> str | None:
+    """Return the object_part string for a stem, or None if not a known exterior pattern."""
+
+    # Pattern 1: ME_Singles_{Theme}_{NNxNN}_{ObjectWords}[_{N}]
+    if _EXTERIOR_PREFIX.match(stem):
+        m = _RESOLUTION_MID.search(stem)
+        if not m:
+            return None
+        part = stem[m.end():]
+        if not part:
+            return None
+        return _TRAILING_NUMBER.sub("", part) or None
+
+    # Patterns 2 & 3: {N}_{Theme}_...
+    if not _NUMERIC_PREFIX.match(stem):
+        return None
+
+    # Pattern 2: {N}_{Theme}_{NNxNN}_{ObjectWords}
+    m = _RESOLUTION_MID.search(stem)
+    if m:
+        part = stem[m.end():]
+        if not part:
+            return None
+        return _TRAILING_NUMBER.sub("", part) or None
+
+    # Pattern 3: {N}_{Theme}_{ObjectWords}_{NNxNN}  (resolution suffix)
+    if _RESOLUTION_END.search(stem):
+        # Strip leading number
+        body = _NUMERIC_PREFIX.sub("", stem)
+        # Strip resolution suffix
+        body = _RESOLUTION_END.sub("", body)
+        # Strip theme prefix (case-insensitive) to isolate object words
+        theme_prefix = re.escape(theme) + "_"
+        body = re.sub(f"^{theme_prefix}", "", body, flags=re.IGNORECASE)
+        return body or None
+
+    return None
 
 
 def _infer_semantic_type(tags: list[str]) -> str:
