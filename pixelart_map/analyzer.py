@@ -175,6 +175,9 @@ def build_catalog(
             "semantic_type": result["semantic_type"],
             "tags": result["tags"],
             "confidence": confidence,
+            "reasoning": result.get("reasoning"),
+            "layer": result.get("layer"),
+            "passable": result.get("passable"),
         }
         tiles[tile_id] = tile
         if on_tile is not None:
@@ -187,6 +190,9 @@ def build_catalog(
                 semantic_type=result["semantic_type"],
                 tags=result["tags"],
                 confidence=confidence,
+                reasoning=result.get("reasoning", ""),
+                layer=result.get("layer", ""),
+                passable=result.get("passable"),
             ))
 
     if monitor is not None:

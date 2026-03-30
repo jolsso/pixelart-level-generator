@@ -19,19 +19,25 @@ CREATE TABLE IF NOT EXISTS tiles (
     description  TEXT NOT NULL,
     semantic_type TEXT NOT NULL,
     tags         TEXT NOT NULL,
-    confidence   REAL
+    confidence   REAL,
+    reasoning    TEXT,
+    layer        TEXT,
+    passable     INTEGER
 );
 """
 
-_MIGRATE_ADD_CONFIDENCE = (
-    "ALTER TABLE tiles ADD COLUMN confidence REAL"
-)
+_MIGRATE_COLUMNS = [
+    "ALTER TABLE tiles ADD COLUMN confidence REAL",
+    "ALTER TABLE tiles ADD COLUMN reasoning TEXT",
+    "ALTER TABLE tiles ADD COLUMN layer TEXT",
+    "ALTER TABLE tiles ADD COLUMN passable INTEGER",
+]
 
 _INSERT_TILE = """
 INSERT OR REPLACE INTO tiles
     (id, path, theme, map_type, grid_unit, pixel_width, pixel_height,
-     description, semantic_type, tags, confidence)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     description, semantic_type, tags, confidence, reasoning, layer, passable)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 
@@ -39,12 +45,12 @@ def open_catalog_db(db_path: Path) -> sqlite3.Connection:
     """Open (or create) a catalog SQLite database, ensuring the schema exists."""
     conn = sqlite3.connect(db_path)
     conn.executescript(_SCHEMA)
-    # Migrate older databases that lack the confidence column.
-    try:
-        conn.execute(_MIGRATE_ADD_CONFIDENCE)
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass  # column already exists
+    for stmt in _MIGRATE_COLUMNS:
+        try:
+            conn.execute(stmt)
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # column already exists
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -64,6 +70,9 @@ def insert_tile(conn: sqlite3.Connection, tile: dict) -> None:
             tile["semantic_type"],
             json.dumps(tile["tags"]),
             tile.get("confidence"),
+            tile.get("reasoning"),
+            tile.get("layer"),
+            1 if tile.get("passable") else 0 if tile.get("passable") is not None else None,
         ),
     )
 
@@ -81,6 +90,9 @@ class TileInfo:
     semantic_type: str
     tags: tuple[str, ...]
     confidence: float | None = None
+    reasoning: str | None = None
+    layer: str | None = None
+    passable: bool | None = None
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "TileInfo":
@@ -96,10 +108,14 @@ class TileInfo:
             semantic_type=d["semantic_type"],
             tags=tuple(d["tags"]),
             confidence=d.get("confidence"),
+            reasoning=d.get("reasoning"),
+            layer=d.get("layer"),
+            passable=d.get("passable"),
         )
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "TileInfo":
+        passable_val = row["passable"]
         return cls(
             id=row["id"],
             path=row["path"],
@@ -112,6 +128,9 @@ class TileInfo:
             semantic_type=row["semantic_type"],
             tags=tuple(json.loads(row["tags"])),
             confidence=row["confidence"],
+            reasoning=row["reasoning"],
+            layer=row["layer"],
+            passable=bool(passable_val) if passable_val is not None else None,
         )
 
 

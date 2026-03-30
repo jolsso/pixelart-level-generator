@@ -25,8 +25,11 @@ def _mock_response(content: dict) -> MagicMock:
 
 def test_analyze_tile_returns_dict(tiny_png):
     expected = {
+        "reasoning": "Red square shape, likely a floor tile",
         "description": "A red square tile",
         "semantic_type": "floor",
+        "layer": "base",
+        "passable": True,
         "tags": ["red", "floor"],
         "confidence": 0.85,
     }

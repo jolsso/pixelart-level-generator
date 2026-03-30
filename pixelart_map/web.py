@@ -29,6 +29,9 @@ class TileState:
     semantic_type: str = ""
     tags: list[str] = field(default_factory=list)
     confidence: float | None = None
+    reasoning: str = ""
+    layer: str = ""
+    passable: bool | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -38,6 +41,9 @@ class TileState:
             "semantic_type": self.semantic_type,
             "tags": self.tags,
             "confidence": self.confidence,
+            "reasoning": self.reasoning,
+            "layer": self.layer,
+            "passable": self.passable,
         }
 
 
@@ -300,6 +306,25 @@ _INDEX_HTML = r"""<!DOCTYPE html>
   .confidence.high { background: #1a3a1a; color: #6fbf6f; }
   .confidence.medium { background: #3a3a1a; color: #bfbf4f; }
   .confidence.low { background: #3a1a1a; color: #bf4f4f; }
+  .card .meta-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .card .meta-badge {
+    font-size: 0.65rem;
+    background: #252840;
+    color: #8890a8;
+    border-radius: 3px;
+    padding: 1px 6px;
+  }
+  .card .reasoning {
+    font-size: 0.65rem;
+    color: #6a7090;
+    font-style: italic;
+    text-align: center;
+    margin-bottom: 4px;
+  }
   .card .tags {
     display: flex;
     flex-wrap: wrap;
@@ -397,11 +422,28 @@ function buildCard(tile, label, cssClass) {
     card.appendChild(desc);
   }
 
-  if (tile.semantic_type) {
-    const sem = document.createElement('div');
-    sem.className = 'semantic';
-    sem.textContent = tile.semantic_type;
-    card.appendChild(sem);
+  if (tile.semantic_type || tile.layer || tile.passable != null) {
+    const row = document.createElement('div');
+    row.className = 'meta-row';
+    if (tile.semantic_type) {
+      const sem = document.createElement('span');
+      sem.className = 'meta-badge';
+      sem.textContent = tile.semantic_type;
+      row.appendChild(sem);
+    }
+    if (tile.layer) {
+      const lay = document.createElement('span');
+      lay.className = 'meta-badge';
+      lay.textContent = tile.layer;
+      row.appendChild(lay);
+    }
+    if (tile.passable != null) {
+      const pass = document.createElement('span');
+      pass.className = 'meta-badge';
+      pass.textContent = tile.passable ? 'passable' : 'blocking';
+      row.appendChild(pass);
+    }
+    card.appendChild(row);
   }
 
   if (tile.confidence != null) {
@@ -411,6 +453,13 @@ function buildCard(tile, label, cssClass) {
     conf.className = 'confidence ' + level;
     conf.textContent = pct + '% confidence';
     card.appendChild(conf);
+  }
+
+  if (tile.reasoning) {
+    const reas = document.createElement('div');
+    reas.className = 'reasoning';
+    reas.textContent = tile.reasoning;
+    card.appendChild(reas);
   }
 
   if (tile.tags && tile.tags.length > 0) {
