@@ -12,17 +12,11 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 _PROMPT_TEMPLATE = (
-    "You are analyzing a small pixel art sprite for a top-down 2D game.\n"
-    "These are tiny sprites (often 16x16, 32x32, or 48x48 pixels) so details "
-    "are stylized and abstract — interpret shapes by what they represent in "
-    "the game context, not literally.\n"
-    "\n"
+    "This is a pixel art sprite from a top-down 2D game, shown upscaled.\n"
     "File path: {rel_path}\n"
-    "The folder name hints at the general theme (e.g. Kitchen, Halloween). "
-    "Use it as background context, but always prioritize what you actually "
-    "see in the image. A lamp in a Kitchen folder is still a lamp, not a sink.\n"
-    "\n"
-    "Respond with valid JSON only, no markdown, matching this schema:\n"
+    "The folder name indicates the theme. Describe what the sprite depicts "
+    "based on its visual appearance.\n"
+    "Respond with valid JSON only, no markdown:\n"
     '{{\n'
     '  "description": "<one sentence: what this sprite depicts>",\n'
     '  "semantic_type": "<one of: floor, wall, furniture, decoration, terrain, prop, building, vehicle>",\n'
@@ -45,7 +39,7 @@ def analyze_tile(
 
     # Upscale small pixel art so the vision model has more detail to work with.
     # Uses nearest-neighbor to preserve crisp pixel edges.
-    _MIN_SIDE = 192
+    _MIN_SIDE = 512
     with Image.open(image_path) as img:
         w, h = img.size
         scale = max(1, _MIN_SIDE // min(w, h))
