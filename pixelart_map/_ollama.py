@@ -25,7 +25,8 @@ _PROMPT_TEMPLATE = (
     '  "description": "<name the specific object>",\n'
     '  "semantic_type": "<one of: floor, wall, furniture, decoration, terrain, prop, building, vehicle>",\n'
     '  "tags": ["<keyword>", ...],\n'
-    '  "confidence": <float 0.0-1.0: how confident you are in this classification>\n'
+    '  "confidence": <float 0.0-1.0: 0.9+ only if unmistakable, 0.5-0.8 if '
+    'plausible but uncertain, below 0.5 if guessing>\n'
     '}}'
 )
 
