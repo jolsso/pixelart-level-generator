@@ -14,11 +14,16 @@ logger = logging.getLogger(__name__)
 _PROMPT_TEMPLATE = (
     "This is a pixel art sprite from a top-down 2D game, shown upscaled.\n"
     "File path: {rel_path}\n"
-    "The folder name indicates the theme. Describe what the sprite depicts "
-    "based on its visual appearance.\n"
+    "The folder name indicates the theme.\n"
+    "\n"
+    "This will be stored in a searchable catalog for a game designer "
+    "building levels. Write a short, practical description naming the "
+    "object (e.g. 'wooden chopping board', 'red sofa', 'stone well'). "
+    "Tags should be words a designer would search for.\n"
+    "\n"
     "Respond with valid JSON only, no markdown:\n"
     '{{\n'
-    '  "description": "<one sentence: what this sprite depicts>",\n'
+    '  "description": "<short: name the object>",\n'
     '  "semantic_type": "<one of: floor, wall, furniture, decoration, terrain, prop, building, vehicle>",\n'
     '  "tags": ["<keyword>", ...],\n'
     '  "confidence": <float 0.0-1.0: how confident you are in this classification>\n'
