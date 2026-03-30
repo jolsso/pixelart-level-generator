@@ -101,6 +101,8 @@ def build_catalog(
     existing_ids: set[str] | None = None,
     on_tile: Callable[[dict], None] | None = None,
     resolution: int | None = None,
+    provider: str = "ollama",
+    limit: int | None = None,
 ) -> dict:
     """Analyze tiles and return a catalog dict.
 
@@ -109,6 +111,8 @@ def build_catalog(
         on_tile: Optional callback invoked with each new tile dict as it is analyzed.
                  Use this for incremental persistence (e.g. write to SQLite per tile).
         resolution: If set, only analyze tiles with this grid_unit (e.g. 48).
+        provider: Vision backend to use — "ollama" or "claude".
+        limit: If set, analyze at most this many new tiles (useful for testing).
     """
     if existing_ids is None:
         existing_ids = set()
@@ -118,6 +122,16 @@ def build_catalog(
         (p, mt, gu) for p, mt, gu in pngs
         if compute_tile_id(p.relative_to(data_dir).as_posix()) not in existing_ids
     ]
+    if limit is not None:
+        new_pngs = new_pngs[:limit]
+
+    if provider == "claude":
+        from pixelart_map._claude import analyze_tile as _analyze_claude
+        def _call_vision(abs_path: Path) -> dict | None:
+            return _analyze_claude(abs_path, model=model)
+    else:
+        def _call_vision(abs_path: Path) -> dict | None:
+            return analyze_tile(abs_path, host=host, model=model)
 
     tiles: dict[str, dict] = {}
 
@@ -131,7 +145,7 @@ def build_catalog(
 
         result = parse_exterior_filename(abs_path.stem, theme)
         if result is None:
-            result = analyze_tile(abs_path, host=host, model=model)
+            result = _call_vision(abs_path)
         if result is None:
             logger.warning("Skipping tile (analysis failed): %s", rel_path)
             continue
@@ -223,11 +237,27 @@ def main() -> None:
         help="Only analyze tiles at this grid unit size in pixels (default: 48). "
              "Pass 0 to scan all resolutions.",
     )
+    parser.add_argument(
+        "--provider",
+        choices=["ollama", "claude"],
+        default="ollama",
+        help="Vision backend to use: 'ollama' (default, local) or 'claude' (Anthropic API).",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Analyze at most N new tiles, then stop (useful for testing).",
+    )
     args = parser.parse_args()
 
-    host = args.host
-    fallback = os.environ.get("OLLAMA_MODEL", "qwen2.5vl:7b")
-    model = args.model if args.model is not None else _pick_model(host, fallback)
+    if args.provider == "claude":
+        fallback = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-6")
+        model = args.model if args.model is not None else fallback
+    else:
+        fallback = os.environ.get("OLLAMA_MODEL", "qwen2.5vl:7b")
+        model = args.model if args.model is not None else _pick_model(host, fallback)
 
     data_dir = Path(args.data_dir)
     db_path = Path(args.output)
@@ -250,6 +280,8 @@ def main() -> None:
         existing_ids=existing_ids,
         on_tile=_write_tile,
         resolution=resolution,
+        provider=args.provider,
+        limit=args.limit,
     )
 
     total = conn.execute("SELECT COUNT(*) FROM tiles").fetchone()[0]
