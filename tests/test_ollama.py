@@ -69,6 +69,27 @@ def test_analyze_tile_returns_none_on_missing_keys(tiny_png):
 
 
 def test_analyze_tile_returns_none_on_http_error(tiny_png):
-    with patch("httpx.post", side_effect=httpx.RequestError("connection refused")):
+    with patch("httpx.post", side_effect=httpx.RequestError("connection refused")), \
+         patch("time.sleep") as mock_sleep:
+        result = analyze_tile(tiny_png, host="http://localhost:11434", model="qwen2-vl")
+    assert result is None
+    assert mock_sleep.call_count == 2  # one sleep per retry
+
+
+def test_analyze_tile_retries_then_succeeds(tiny_png):
+    """A transient failure on attempt 1 is retried and the second attempt succeeds."""
+    expected = {"description": "A tile", "semantic_type": "floor", "tags": []}
+    with patch("httpx.post", side_effect=[
+        httpx.RequestError("connection reset"),
+        _mock_response(expected),
+    ]), patch("time.sleep"):
+        result = analyze_tile(tiny_png, host="http://localhost:11434", model="qwen2-vl")
+    assert result == expected
+
+
+def test_analyze_tile_returns_none_on_unexpected_exception(tiny_png):
+    """Low-level socket errors that bypass httpx wrapping are caught and return None."""
+    with patch("httpx.post", side_effect=OSError("recv failed")), \
+         patch("time.sleep"):
         result = analyze_tile(tiny_png, host="http://localhost:11434", model="qwen2-vl")
     assert result is None
