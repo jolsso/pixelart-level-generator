@@ -90,6 +90,21 @@ def test_build_catalog_skips_already_analyzed(tmp_path):
         assert mock_analyze.call_count == 3  # unchanged
 
 
+def test_build_catalog_resolution_filter(tmp_path):
+    make_asset_tree(tmp_path)
+    with patch("pixelart_map.analyzer.analyze_tile", side_effect=_fake_analyze):
+        catalog = build_catalog(
+            data_dir=tmp_path,
+            host="http://localhost:11434",
+            model="qwen2-vl",
+            resolution=48,
+        )
+
+    tiles = list(catalog["tiles"].values())
+    assert all(t["grid_unit"] == 48 for t in tiles)
+    assert len(tiles) == 2  # interior 48x48 and 48x96; exterior 16x16 excluded
+
+
 def test_build_catalog_skips_failed_tiles(tmp_path):
     make_asset_tree(tmp_path)
     with patch("pixelart_map.analyzer.analyze_tile", return_value=None):

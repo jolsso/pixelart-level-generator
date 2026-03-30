@@ -34,12 +34,15 @@ def _grid_unit_from_path(path: Path) -> int | None:
     return None
 
 
-def _collect_pngs(data_dir: Path) -> list[tuple[Path, str, int]]:
+def _collect_pngs(data_dir: Path, resolution: int | None = None) -> list[tuple[Path, str, int]]:
     """Return list of (abs_path, map_type, grid_unit) for all singles PNGs.
 
     Interior: all Theme_Sorter_Shadowless_Singles subtrees (16x16, 32x32, 48x48).
     Exterior: all ME_Theme_Sorter subtrees (16x16, 32x32, 48x48); root-level
               spritesheets directly inside ME_Theme_Sorter are skipped.
+
+    Args:
+        resolution: If set, only collect tiles whose grid_unit matches this value.
     """
     results: list[tuple[Path, str, int]] = []
 
@@ -53,6 +56,8 @@ def _collect_pngs(data_dir: Path) -> list[tuple[Path, str, int]]:
                 continue
             grid_unit = _grid_unit_from_path(res_dir)
             if grid_unit is None:
+                continue
+            if resolution is not None and grid_unit != resolution:
                 continue
             for variant_dir in sorted(res_dir.iterdir()):
                 if not variant_dir.is_dir():
@@ -74,6 +79,8 @@ def _collect_pngs(data_dir: Path) -> list[tuple[Path, str, int]]:
             grid_unit = _grid_unit_from_path(res_dir)
             if grid_unit is None:
                 continue
+            if resolution is not None and grid_unit != resolution:
+                continue
             for sub in sorted(res_dir.iterdir()):
                 if not sub.is_dir() or not sub.name.startswith("ME_Theme_Sorter_"):
                     continue
@@ -93,6 +100,7 @@ def build_catalog(
     model: str,
     existing_ids: set[str] | None = None,
     on_tile: Callable[[dict], None] | None = None,
+    resolution: int | None = None,
 ) -> dict:
     """Analyze tiles and return a catalog dict.
 
@@ -100,11 +108,12 @@ def build_catalog(
         existing_ids: Set of tile IDs already in the catalog — those tiles are skipped.
         on_tile: Optional callback invoked with each new tile dict as it is analyzed.
                  Use this for incremental persistence (e.g. write to SQLite per tile).
+        resolution: If set, only analyze tiles with this grid_unit (e.g. 48).
     """
     if existing_ids is None:
         existing_ids = set()
 
-    pngs = _collect_pngs(data_dir)
+    pngs = _collect_pngs(data_dir, resolution=resolution)
     new_pngs = [
         (p, mt, gu) for p, mt, gu in pngs
         if compute_tile_id(str(p.relative_to(data_dir))) not in existing_ids
@@ -206,6 +215,14 @@ def main() -> None:
         default=None,
         help="Ollama model name (default: auto-picked from installed models)",
     )
+    parser.add_argument(
+        "--resolution",
+        type=int,
+        default=48,
+        metavar="N",
+        help="Only analyze tiles at this grid unit size in pixels (default: 48). "
+             "Pass 0 to scan all resolutions.",
+    )
     args = parser.parse_args()
 
     host = args.host
@@ -224,12 +241,15 @@ def main() -> None:
         insert_tile(conn, tile)
         conn.commit()
 
+    resolution = args.resolution if args.resolution != 0 else None
+
     build_catalog(
         data_dir=data_dir,
         host=host,
         model=model,
         existing_ids=existing_ids,
         on_tile=_write_tile,
+        resolution=resolution,
     )
 
     total = conn.execute("SELECT COUNT(*) FROM tiles").fetchone()[0]
