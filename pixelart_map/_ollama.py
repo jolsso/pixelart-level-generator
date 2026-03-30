@@ -16,9 +16,9 @@ _PROMPT_TEMPLATE = (
     "the game context, not literally.\n"
     "\n"
     "File path: {rel_path}\n"
-    "The folder name tells you the theme (e.g. Kitchen, Halloween, Bathroom). "
-    "Use this as strong context — a dark blob in a Halloween folder is likely "
-    "a spider or bat, not a generic object.\n"
+    "The folder name hints at the general theme (e.g. Kitchen, Halloween). "
+    "Use it as background context, but always prioritize what you actually "
+    "see in the image. A lamp in a Kitchen folder is still a lamp, not a sink.\n"
     "\n"
     "Respond with valid JSON only, no markdown, matching this schema:\n"
     '{{\n'
