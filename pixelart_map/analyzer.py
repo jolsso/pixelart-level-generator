@@ -251,6 +251,7 @@ def main() -> None:
         help="Analyze at most N new tiles, then stop (useful for testing).",
     )
     args = parser.parse_args()
+    host = args.host
 
     if args.provider == "claude":
         fallback = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-6")
