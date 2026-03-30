@@ -24,19 +24,20 @@ def _mock_response(content: dict) -> MagicMock:
 
 
 def test_analyze_tile_returns_dict(tiny_png):
-    expected = {
-        "reasoning": "Red square shape, likely a floor tile",
-        "description": "A red square tile",
-        "semantic_type": "floor",
-        "layer": "base",
+    ollama_response = {
+        "description": "red floor",
+        "type": "floor",
         "passable": True,
         "tags": ["red", "floor"],
         "confidence": 0.85,
     }
-    with patch("httpx.post", return_value=_mock_response(expected)) as mock_post:
+    with patch("httpx.post", return_value=_mock_response(ollama_response)) as mock_post:
         result = analyze_tile(tiny_png, host="http://localhost:11434", model="qwen2-vl")
 
-    assert result == expected
+    # "type" gets normalized to "semantic_type"
+    assert result["semantic_type"] == "floor"
+    assert result["description"] == "red floor"
+    assert "type" not in result
     mock_post.assert_called_once()
 
 
