@@ -18,15 +18,20 @@ CREATE TABLE IF NOT EXISTS tiles (
     pixel_height INTEGER NOT NULL,
     description  TEXT NOT NULL,
     semantic_type TEXT NOT NULL,
-    tags         TEXT NOT NULL
+    tags         TEXT NOT NULL,
+    confidence   REAL
 );
 """
+
+_MIGRATE_ADD_CONFIDENCE = (
+    "ALTER TABLE tiles ADD COLUMN confidence REAL"
+)
 
 _INSERT_TILE = """
 INSERT OR REPLACE INTO tiles
     (id, path, theme, map_type, grid_unit, pixel_width, pixel_height,
-     description, semantic_type, tags)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     description, semantic_type, tags, confidence)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 
@@ -34,6 +39,12 @@ def open_catalog_db(db_path: Path) -> sqlite3.Connection:
     """Open (or create) a catalog SQLite database, ensuring the schema exists."""
     conn = sqlite3.connect(db_path)
     conn.executescript(_SCHEMA)
+    # Migrate older databases that lack the confidence column.
+    try:
+        conn.execute(_MIGRATE_ADD_CONFIDENCE)
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -52,6 +63,7 @@ def insert_tile(conn: sqlite3.Connection, tile: dict) -> None:
             tile["description"],
             tile["semantic_type"],
             json.dumps(tile["tags"]),
+            tile.get("confidence"),
         ),
     )
 
@@ -68,6 +80,7 @@ class TileInfo:
     description: str
     semantic_type: str
     tags: tuple[str, ...]
+    confidence: float | None = None
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "TileInfo":
@@ -82,6 +95,7 @@ class TileInfo:
             description=d["description"],
             semantic_type=d["semantic_type"],
             tags=tuple(d["tags"]),
+            confidence=d.get("confidence"),
         )
 
     @classmethod
@@ -97,6 +111,7 @@ class TileInfo:
             description=row["description"],
             semantic_type=row["semantic_type"],
             tags=tuple(json.loads(row["tags"])),
+            confidence=row["confidence"],
         )
 
 

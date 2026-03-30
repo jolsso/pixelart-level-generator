@@ -157,6 +157,12 @@ def build_catalog(
             logger.warning("Skipping tile (analysis failed): %s", rel_path)
             continue
 
+        confidence = result.get("confidence")
+        if isinstance(confidence, (int, float)):
+            confidence = max(0.0, min(1.0, float(confidence)))
+        else:
+            confidence = None
+
         tile = {
             "id": tile_id,
             "path": rel_path,
@@ -168,6 +174,7 @@ def build_catalog(
             "description": result["description"],
             "semantic_type": result["semantic_type"],
             "tags": result["tags"],
+            "confidence": confidence,
         }
         tiles[tile_id] = tile
         if on_tile is not None:
@@ -179,6 +186,7 @@ def build_catalog(
                 description=result["description"],
                 semantic_type=result["semantic_type"],
                 tags=result["tags"],
+                confidence=confidence,
             ))
 
     if monitor is not None:

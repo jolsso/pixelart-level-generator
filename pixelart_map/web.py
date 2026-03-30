@@ -28,6 +28,7 @@ class TileState:
     description: str = ""
     semantic_type: str = ""
     tags: list[str] = field(default_factory=list)
+    confidence: float | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -36,6 +37,7 @@ class TileState:
             "description": self.description,
             "semantic_type": self.semantic_type,
             "tags": self.tags,
+            "confidence": self.confidence,
         }
 
 
@@ -288,6 +290,16 @@ _INDEX_HTML = r"""<!DOCTYPE html>
     padding: 2px 8px;
     margin-bottom: 4px;
   }
+  .card .confidence {
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-bottom: 4px;
+  }
+  .confidence.high { background: #1a3a1a; color: #6fbf6f; }
+  .confidence.medium { background: #3a3a1a; color: #bfbf4f; }
+  .confidence.low { background: #3a1a1a; color: #bf4f4f; }
   .card .tags {
     display: flex;
     flex-wrap: wrap;
@@ -390,6 +402,15 @@ function buildCard(tile, label, cssClass) {
     sem.className = 'semantic';
     sem.textContent = tile.semantic_type;
     card.appendChild(sem);
+  }
+
+  if (tile.confidence != null) {
+    const conf = document.createElement('div');
+    const pct = (tile.confidence * 100).toFixed(0);
+    const level = tile.confidence >= 0.7 ? 'high' : tile.confidence >= 0.4 ? 'medium' : 'low';
+    conf.className = 'confidence ' + level;
+    conf.textContent = pct + '% confidence';
+    card.appendChild(conf);
   }
 
   if (tile.tags && tile.tags.length > 0) {

@@ -159,8 +159,8 @@ def test_analyzer_tile_id_matches_catalog_key(tmp_path):
     interior_dir.mkdir(parents=True)
     Image.new("RGBA", (48, 48), (0, 0, 0, 255)).save(interior_dir / "tile.png")
 
-    def fake_analyze(path, host, model):
-        return {"description": "x", "semantic_type": "floor", "tags": []}
+    def fake_analyze(path, host, model, **kwargs):
+        return {"description": "x", "semantic_type": "floor", "tags": [], "confidence": 0.9}
 
     with patch("pixelart_map.analyzer.analyze_tile", side_effect=fake_analyze):
         catalog = build_catalog(data_dir=tmp_path, host="http://localhost:11434", model="qwen2-vl")

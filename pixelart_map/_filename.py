@@ -106,6 +106,7 @@ def parse_exterior_filename(stem: str, theme: str) -> dict | None:
         "description": description,
         "semantic_type": semantic_type,
         "tags": tags,
+        "confidence": 1.0,
     }
 
 

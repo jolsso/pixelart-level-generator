@@ -10,19 +10,26 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _PROMPT_TEMPLATE = (
-    "You are analyzing a pixel art tile for a top-down 2D game.\n"
-    "The tile comes from this file path: {rel_path}\n"
-    "Use the folder and file names as context (e.g. theme, room type) "
-    "to inform your description.\n"
+    "You are analyzing a small pixel art sprite for a top-down 2D game.\n"
+    "These are tiny sprites (often 16x16, 32x32, or 48x48 pixels) so details "
+    "are stylized and abstract — interpret shapes by what they represent in "
+    "the game context, not literally.\n"
+    "\n"
+    "File path: {rel_path}\n"
+    "The folder name tells you the theme (e.g. Kitchen, Halloween, Bathroom). "
+    "Use this as strong context — a dark blob in a Halloween folder is likely "
+    "a spider or bat, not a generic object.\n"
+    "\n"
     "Respond with valid JSON only, no markdown, matching this schema:\n"
     '{{\n'
-    '  "description": "<one sentence: what this tile depicts>",\n'
+    '  "description": "<one sentence: what this sprite depicts>",\n'
     '  "semantic_type": "<one of: floor, wall, furniture, decoration, terrain, prop, building, vehicle>",\n'
-    '  "tags": ["<keyword>", ...]\n'
+    '  "tags": ["<keyword>", ...],\n'
+    '  "confidence": <float 0.0-1.0: how confident you are in this classification>\n'
     '}}'
 )
 
-_REQUIRED_KEYS = {"description", "semantic_type", "tags"}
+_REQUIRED_KEYS = {"description", "semantic_type", "tags", "confidence"}
 
 
 def analyze_tile(

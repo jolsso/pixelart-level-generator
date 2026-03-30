@@ -28,6 +28,7 @@ def test_analyze_tile_returns_dict(tiny_png):
         "description": "A red square tile",
         "semantic_type": "floor",
         "tags": ["red", "floor"],
+        "confidence": 0.85,
     }
     with patch("httpx.post", return_value=_mock_response(expected)) as mock_post:
         result = analyze_tile(tiny_png, host="http://localhost:11434", model="qwen2-vl")
