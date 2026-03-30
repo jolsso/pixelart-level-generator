@@ -59,12 +59,15 @@ def analyze_tile(
         }],
     }
     try:
-        response = httpx.post(f"{host}/api/chat", json=payload, timeout=60.0)
+        response = httpx.post(
+            f"{host}/api/chat", json=payload,
+            timeout=httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0),
+        )
         response.raise_for_status()
         raw = response.json()["message"]["content"]
         result = json.loads(raw)
     except (httpx.RequestError, httpx.HTTPStatusError, json.JSONDecodeError, KeyError) as e:
-        logger.warning("Ollama call failed for %s: %s", image_path, e)
+        logger.warning("Ollama call failed for %s: %s: %s", image_path, type(e).__name__, e)
         return None
 
     if not _REQUIRED_KEYS.issubset(result.keys()):
