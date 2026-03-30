@@ -152,7 +152,7 @@ def build_catalog(
 
         result = parse_exterior_filename(abs_path.stem, theme)
         if result is None:
-            result = analyze_tile(abs_path, host=host, model=model)
+            result = analyze_tile(abs_path, host=host, model=model, rel_path=rel_path)
         if result is None:
             logger.warning("Skipping tile (analysis failed): %s", rel_path)
             continue

@@ -38,7 +38,7 @@ def make_asset_tree(base: Path) -> dict[str, Path]:
     return tiles
 
 
-def _fake_analyze(path, host, model):
+def _fake_analyze(path, host, model, **kwargs):
     return {
         "description": f"A tile at {Path(path).name}",
         "semantic_type": "floor",

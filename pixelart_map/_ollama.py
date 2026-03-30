@@ -9,14 +9,17 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-_PROMPT = (
+_PROMPT_TEMPLATE = (
     "You are analyzing a pixel art tile for a top-down 2D game.\n"
+    "The tile comes from this file path: {rel_path}\n"
+    "Use the folder and file names as context (e.g. theme, room type) "
+    "to inform your description.\n"
     "Respond with valid JSON only, no markdown, matching this schema:\n"
-    '{\n'
+    '{{\n'
     '  "description": "<one sentence: what this tile depicts>",\n'
     '  "semantic_type": "<one of: floor, wall, furniture, decoration, terrain, prop, building, vehicle>",\n'
     '  "tags": ["<keyword>", ...]\n'
-    '}'
+    '}}'
 )
 
 _REQUIRED_KEYS = {"description", "semantic_type", "tags"}
@@ -26,8 +29,10 @@ def analyze_tile(
     image_path: Path,
     host: str = "http://localhost:11434",
     model: str = "qwen2.5vl:7b",
+    rel_path: str = "",
 ) -> dict | None:
     """Call Ollama to describe a tile image. Returns parsed dict or None on failure."""
+    prompt = _PROMPT_TEMPLATE.format(rel_path=rel_path or image_path.name)
     image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")
     payload = {
         "model": model,
@@ -35,7 +40,7 @@ def analyze_tile(
         "format": "json",
         "messages": [{
             "role": "user",
-            "content": _PROMPT,
+            "content": prompt,
             "images": [image_b64],
         }],
     }
