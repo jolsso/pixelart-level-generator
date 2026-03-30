@@ -83,17 +83,3 @@ PNG bytes + tilemap metadata  →  game engine serves as HTTP response
 
 Tests create all PNG fixtures programmatically with Pillow and mock Ollama via `unittest.mock` — **no real assets or GPU required**. The `data/` directory is gitignored.
 
-## Asset Data
-
-`data/` is gitignored (third-party pixel art from limezu.itch.io). The analyzer dynamically discovers all qualifying subtrees:
-
-**Interiors** — `moderninteriors-win/1_Interiors/{16x16,32x32,48x48}/Theme_Sorter_Shadowless_Singles_{RES}/`
-- Shadowless variant only (no Black Shadow or base shadow duplicates)
-- ~5 330 tiles per resolution × 3 = ~16 000 interior tiles total
-
-**Exteriors** — `modernexteriors-win/Modern_Exteriors_{RES}/ME_Theme_Sorter_{RES}/*/`
-- All 24 theme subdirectories per resolution; root-level spritesheet PNGs skipped
-- ~6 200 tiles per resolution × 3 = ~18 600 exterior tiles total
-- All exterior tiles resolved via filename parsing (no Ollama needed)
-
-The same logical tile exists at three resolutions (16, 32, 48). `grid_unit` in each catalog entry reflects the tile's pixel size, letting the game engine filter by resolution.

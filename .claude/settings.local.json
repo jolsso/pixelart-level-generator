@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3:*)"
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(pytest:*)",
+      "Bash(pip:*)",
+      "Bash(git fetch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
+  },
+  "enabledPlugins": {
+    "vercel@claude-plugins-official": false
   }
 }

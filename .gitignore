@@ -3,3 +3,7 @@
 # Source: https://limezu.itch.io/modernexteriors
 moden_pixelart/
 data/
+
+# Local secrets — never commit
+.env
+.env.local
