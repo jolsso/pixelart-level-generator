@@ -21,6 +21,7 @@ dev = [
 
 [project.scripts]
 pixelart-analyze = "pixelart_map.analyzer:main"
+pixelart-browse = "pixelart_map.browser:main"
 
 [tool.setuptools.packages.find]
 include = ["pixelart_map*"]

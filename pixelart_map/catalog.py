@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS tiles (
     confidence   REAL,
     reasoning    TEXT,
     layer        TEXT,
-    passable     INTEGER
+    passable     INTEGER,
+    feedback     INTEGER
 );
 """
 
@@ -31,6 +32,7 @@ _MIGRATE_COLUMNS = [
     "ALTER TABLE tiles ADD COLUMN reasoning TEXT",
     "ALTER TABLE tiles ADD COLUMN layer TEXT",
     "ALTER TABLE tiles ADD COLUMN passable INTEGER",
+    "ALTER TABLE tiles ADD COLUMN feedback INTEGER",
 ]
 
 _INSERT_TILE = """
