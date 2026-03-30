@@ -12,7 +12,7 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 _PROMPT_TEMPLATE = (
-    "Classify this pixel art sprite from folder: {rel_path}\n"
+    "Classify this pixel art sprite: {filename}\n"
     "\n"
     "Reply with JSON only:\n"
     '{{\n'
@@ -34,11 +34,12 @@ def analyze_tile(
     rel_path: str = "",
 ) -> dict | None:
     """Call Ollama to describe a tile image. Returns parsed dict or None on failure."""
-    prompt = _PROMPT_TEMPLATE.format(rel_path=rel_path or image_path.name)
+    filename = Path(rel_path).name if rel_path else image_path.name
+    prompt = _PROMPT_TEMPLATE.format(filename=filename)
 
     # Upscale small pixel art so the vision model has more detail to work with.
     # Uses nearest-neighbor to preserve crisp pixel edges.
-    _MIN_SIDE = 512
+    _MIN_SIDE = 256
     with Image.open(image_path) as img:
         w, h = img.size
         scale = max(1, _MIN_SIDE // min(w, h))
