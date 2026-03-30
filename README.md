@@ -15,10 +15,15 @@ The package is consumed by a separate game engine that owns all LLM-based map ge
 ## Prerequisites
 
 - Python ≥ 3.11
-- For the **analyzer only**: Ollama running locally with `qwen2.5vl:7b` pulled, and pixel art assets present at `PIXELART_DATA_DIR`
+- For the **analyzer only**: [Ollama](https://ollama.com/download) installed and running with `qwen2.5vl:7b` pulled, and pixel art assets present at `PIXELART_DATA_DIR`
 
 ```bash
-ollama serve
+# macOS (Homebrew)
+brew install ollama
+
+# or download the installer from https://ollama.com/download
+
+ollama serve          # start the Ollama server (skip if already running as a service)
 ollama pull qwen2.5vl:7b
 ```
 
