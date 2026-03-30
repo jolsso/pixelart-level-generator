@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
 from pathlib import Path
 
 import httpx
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,18 @@ def analyze_tile(
 ) -> dict | None:
     """Call Ollama to describe a tile image. Returns parsed dict or None on failure."""
     prompt = _PROMPT_TEMPLATE.format(rel_path=rel_path or image_path.name)
-    image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")
+
+    # Upscale small pixel art so the vision model has more detail to work with.
+    # Uses nearest-neighbor to preserve crisp pixel edges.
+    _MIN_SIDE = 192
+    with Image.open(image_path) as img:
+        w, h = img.size
+        scale = max(1, _MIN_SIDE // min(w, h))
+        if scale > 1:
+            img = img.resize((w * scale, h * scale), Image.NEAREST)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        image_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
     payload = {
         "model": model,
         "stream": False,
