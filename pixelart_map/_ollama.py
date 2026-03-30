@@ -18,9 +18,7 @@ _PROMPT_TEMPLATE = (
     "\n"
     "This will be stored in a searchable catalog for a game designer "
     "building levels. Be specific — name the exact object, not a generic "
-    "category. Say 'wooden chopping board' not 'kitchen item', "
-    "'red fire extinguisher' not 'object', 'standing floor lamp' not "
-    "'furniture'. Tags should be words a designer would search for.\n"
+    "category. Tags should be words a designer would search for.\n"
     "\n"
     "Respond with valid JSON only, no markdown:\n"
     '{{\n'
