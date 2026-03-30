@@ -116,13 +116,13 @@ def build_catalog(
     pngs = _collect_pngs(data_dir, resolution=resolution)
     new_pngs = [
         (p, mt, gu) for p, mt, gu in pngs
-        if compute_tile_id(str(p.relative_to(data_dir))) not in existing_ids
+        if compute_tile_id(p.relative_to(data_dir).as_posix()) not in existing_ids
     ]
 
     tiles: dict[str, dict] = {}
 
     for abs_path, map_type, grid_unit in tqdm(new_pngs, desc="Analyzing tiles"):
-        rel_path = str(abs_path.relative_to(data_dir))
+        rel_path = abs_path.relative_to(data_dir).as_posix()
         tile_id = compute_tile_id(rel_path)
         theme = strip_theme_name(abs_path.parent.name)
 
