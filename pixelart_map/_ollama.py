@@ -24,7 +24,7 @@ _PROMPT_TEMPLATE = (
     "\n"
     "Respond with valid JSON only, no markdown:\n"
     '{{\n'
-    '  "description": "<short: name the object>",\n'
+    '  "description": "<name the specific object>",\n'
     '  "semantic_type": "<one of: floor, wall, furniture, decoration, terrain, prop, building, vehicle>",\n'
     '  "tags": ["<keyword>", ...],\n'
     '  "confidence": <float 0.0-1.0: how confident you are in this classification>\n'
