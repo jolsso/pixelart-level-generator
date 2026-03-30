@@ -2,7 +2,8 @@
 # Source: https://limezu.itch.io/moderninteriors
 # Source: https://limezu.itch.io/modernexteriors
 moden_pixelart/
-data/
+data/*
+!data/.gitkeep
 
 # Local secrets — never commit
 .env
