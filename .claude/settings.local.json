@@ -15,7 +15,8 @@
       "Skill(commit-commands:commit-push-pr)",
       "WebFetch(domain:www.anthropic.com)",
       "WebFetch(domain:docs.anthropic.com)",
-      "Skill(commit-commands:commit)"
+      "Skill(commit-commands:commit)",
+      "Bash(sqlite3:*)"
     ]
   },
   "enabledPlugins": {
