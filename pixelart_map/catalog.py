@@ -25,6 +25,10 @@ CREATE TABLE IF NOT EXISTS tiles (
     passable     INTEGER,
     feedback     INTEGER
 );
+CREATE TABLE IF NOT EXISTS claude_batches (
+    batch_id TEXT PRIMARY KEY,
+    status   TEXT NOT NULL DEFAULT 'pending'
+);
 """
 
 _MIGRATE_COLUMNS = [
