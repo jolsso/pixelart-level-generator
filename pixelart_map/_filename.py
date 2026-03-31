@@ -106,6 +106,10 @@ def parse_exterior_filename(stem: str, theme: str) -> dict | None:
         "description": description,
         "semantic_type": semantic_type,
         "tags": tags,
+        "confidence": 1.0,
+        "reasoning": "parsed from filename",
+        "layer": "object",
+        "passable": semantic_type in ("floor", "terrain"),
     }
 
 

@@ -103,6 +103,7 @@ def build_catalog(
     resolution: int | None = None,
     provider: str = "ollama",
     limit: int | None = None,
+    monitor: object | None = None,
 ) -> dict:
     """Analyze tiles and return a catalog dict.
 
@@ -113,15 +114,21 @@ def build_catalog(
         resolution: If set, only analyze tiles with this grid_unit (e.g. 48).
         provider: Vision backend to use — "ollama" or "claude".
         limit: If set, analyze at most this many new tiles (useful for testing).
+        monitor: Optional AnalyzerMonitor for the web UI.
     """
+    from pixelart_map.web import TileState
+
     if existing_ids is None:
         existing_ids = set()
 
     pngs = _collect_pngs(data_dir, resolution=resolution)
+    all_count = len(pngs)
     new_pngs = [
         (p, mt, gu) for p, mt, gu in pngs
         if compute_tile_id(p.relative_to(data_dir).as_posix()) not in existing_ids
     ]
+    skipped = all_count - len(new_pngs)
+
     if limit is not None:
         new_pngs = new_pngs[:limit]
 
@@ -133,12 +140,27 @@ def build_catalog(
         def _call_vision(abs_path: Path) -> dict | None:
             return analyze_tile(abs_path, host=host, model=model)
 
+    if monitor is not None:
+        monitor.set_total(len(new_pngs), skipped)
+
     tiles: dict[str, dict] = {}
 
-    for abs_path, map_type, grid_unit in tqdm(new_pngs, desc="Analyzing tiles"):
+    for i, (abs_path, map_type, grid_unit) in enumerate(tqdm(new_pngs, desc="Analyzing tiles")):
         rel_path = abs_path.relative_to(data_dir).as_posix()
         tile_id = compute_tile_id(rel_path)
         theme = strip_theme_name(abs_path.parent.name)
+
+        if monitor is not None:
+            current_state = TileState(path=rel_path, abs_path=str(abs_path), theme=theme)
+            next_state = None
+            if i + 1 < len(new_pngs):
+                next_abs, _, _ = new_pngs[i + 1]
+                next_rel = str(next_abs.relative_to(data_dir))
+                next_state = TileState(
+                    path=next_rel, abs_path=str(next_abs),
+                    theme=strip_theme_name(next_abs.parent.name),
+                )
+            monitor.begin_tile(current_state, next_state)
 
         with Image.open(abs_path) as img:
             pixel_width, pixel_height = img.size
@@ -149,6 +171,12 @@ def build_catalog(
         if result is None:
             logger.warning("Skipping tile (analysis failed): %s", rel_path)
             continue
+
+        confidence = result.get("confidence")
+        if isinstance(confidence, (int, float)):
+            confidence = max(0.0, min(1.0, float(confidence)))
+        else:
+            confidence = None
 
         tile = {
             "id": tile_id,
@@ -161,10 +189,29 @@ def build_catalog(
             "description": result["description"],
             "semantic_type": result["semantic_type"],
             "tags": result["tags"],
+            "confidence": confidence,
+            "reasoning": result.get("reasoning"),
+            "layer": result.get("layer"),
+            "passable": result.get("passable"),
         }
         tiles[tile_id] = tile
         if on_tile is not None:
             on_tile(tile)
+
+        if monitor is not None:
+            monitor.finish_tile(TileState(
+                path=rel_path, abs_path=str(abs_path), theme=theme,
+                description=result["description"],
+                semantic_type=result["semantic_type"],
+                tags=result["tags"],
+                confidence=confidence,
+                reasoning=result.get("reasoning", ""),
+                layer=result.get("layer", ""),
+                passable=result.get("passable"),
+            ))
+
+    if monitor is not None:
+        monitor.finish_all()
 
     return {"tiles": tiles}
 
@@ -250,6 +297,19 @@ def main() -> None:
         metavar="N",
         help="Analyze at most N new tiles, then stop (useful for testing).",
     )
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        default=False,
+        help="Launch a live web monitor at http://127.0.0.1:5555",
+    )
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=5555,
+        metavar="PORT",
+        help="Port for the web monitor (default: 5555)",
+    )
     args = parser.parse_args()
     host = args.host
 
@@ -274,6 +334,11 @@ def main() -> None:
 
     resolution = args.resolution if args.resolution != 0 else None
 
+    monitor = None
+    if args.web:
+        from pixelart_map.web import start_server
+        monitor = start_server(data_dir, port=args.web_port)
+
     build_catalog(
         data_dir=data_dir,
         host=host,
@@ -283,6 +348,7 @@ def main() -> None:
         resolution=resolution,
         provider=args.provider,
         limit=args.limit,
+        monitor=monitor,
     )
 
     total = conn.execute("SELECT COUNT(*) FROM tiles").fetchone()[0]

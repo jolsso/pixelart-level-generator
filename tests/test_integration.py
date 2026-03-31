@@ -33,7 +33,7 @@ def _make_asset_tree(base: Path) -> None:
     Image.new("RGBA", (16, 16), (0, 255, 0, 255)).save(exterior_dir / "building.png")
 
 
-def _fake_analyze(path, host, model):
+def _fake_analyze(path, host, model, **kwargs):
     name = Path(path).stem
     return {"description": f"A {name} tile", "semantic_type": "floor", "tags": [name]}
 
