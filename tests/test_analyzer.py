@@ -38,7 +38,7 @@ def make_asset_tree(base: Path) -> dict[str, Path]:
     return tiles
 
 
-def _fake_analyze(path, host, model):
+def _fake_analyze(path, host, model, **kwargs):
     return {
         "description": f"A tile at {Path(path).name}",
         "semantic_type": "floor",
@@ -110,6 +110,32 @@ def test_build_catalog_skips_failed_tiles(tmp_path):
     with patch("pixelart_map.analyzer.analyze_tile", return_value=None):
         catalog = build_catalog(data_dir=tmp_path, host="http://localhost:11434", model="qwen2-vl")
     assert len(catalog["tiles"]) == 0
+
+
+def test_build_catalog_limit(tmp_path):
+    make_asset_tree(tmp_path)
+    with patch("pixelart_map.analyzer.analyze_tile", side_effect=_fake_analyze):
+        catalog = build_catalog(
+            data_dir=tmp_path, host="http://localhost:11434", model="qwen2-vl", limit=2
+        )
+    assert len(catalog["tiles"]) == 2
+
+
+def test_build_catalog_claude_provider(tmp_path):
+    make_asset_tree(tmp_path)
+
+    def _fake_claude(path, model):
+        return {"description": "A tile", "semantic_type": "floor", "tags": ["test"]}
+
+    with patch("pixelart_map._claude.analyze_tile", side_effect=_fake_claude):
+        catalog = build_catalog(
+            data_dir=tmp_path,
+            host="unused",
+            model="claude-opus-4-6",
+            provider="claude",
+        )
+
+    assert len(catalog["tiles"]) == 3
 
 
 def test_compute_tile_id_is_sha256(tmp_path):

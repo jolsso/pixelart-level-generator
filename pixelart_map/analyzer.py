@@ -101,6 +101,9 @@ def build_catalog(
     existing_ids: set[str] | None = None,
     on_tile: Callable[[dict], None] | None = None,
     resolution: int | None = None,
+    provider: str = "ollama",
+    limit: int | None = None,
+    monitor: object | None = None,
 ) -> dict:
     """Analyze tiles and return a catalog dict.
 
@@ -109,32 +112,71 @@ def build_catalog(
         on_tile: Optional callback invoked with each new tile dict as it is analyzed.
                  Use this for incremental persistence (e.g. write to SQLite per tile).
         resolution: If set, only analyze tiles with this grid_unit (e.g. 48).
+        provider: Vision backend to use — "ollama" or "claude".
+        limit: If set, analyze at most this many new tiles (useful for testing).
+        monitor: Optional AnalyzerMonitor for the web UI.
     """
+    from pixelart_map.web import TileState
+
     if existing_ids is None:
         existing_ids = set()
 
     pngs = _collect_pngs(data_dir, resolution=resolution)
+    all_count = len(pngs)
     new_pngs = [
         (p, mt, gu) for p, mt, gu in pngs
-        if compute_tile_id(str(p.relative_to(data_dir))) not in existing_ids
+        if compute_tile_id(p.relative_to(data_dir).as_posix()) not in existing_ids
     ]
+    skipped = all_count - len(new_pngs)
+
+    if limit is not None:
+        new_pngs = new_pngs[:limit]
+
+    if provider == "claude":
+        from pixelart_map._claude import analyze_tile as _analyze_claude
+        def _call_vision(abs_path: Path) -> dict | None:
+            return _analyze_claude(abs_path, model=model)
+    else:
+        def _call_vision(abs_path: Path) -> dict | None:
+            return analyze_tile(abs_path, host=host, model=model)
+
+    if monitor is not None:
+        monitor.set_total(len(new_pngs), skipped)
 
     tiles: dict[str, dict] = {}
 
-    for abs_path, map_type, grid_unit in tqdm(new_pngs, desc="Analyzing tiles"):
-        rel_path = str(abs_path.relative_to(data_dir))
+    for i, (abs_path, map_type, grid_unit) in enumerate(tqdm(new_pngs, desc="Analyzing tiles")):
+        rel_path = abs_path.relative_to(data_dir).as_posix()
         tile_id = compute_tile_id(rel_path)
         theme = strip_theme_name(abs_path.parent.name)
+
+        if monitor is not None:
+            current_state = TileState(path=rel_path, abs_path=str(abs_path), theme=theme)
+            next_state = None
+            if i + 1 < len(new_pngs):
+                next_abs, _, _ = new_pngs[i + 1]
+                next_rel = str(next_abs.relative_to(data_dir))
+                next_state = TileState(
+                    path=next_rel, abs_path=str(next_abs),
+                    theme=strip_theme_name(next_abs.parent.name),
+                )
+            monitor.begin_tile(current_state, next_state)
 
         with Image.open(abs_path) as img:
             pixel_width, pixel_height = img.size
 
         result = parse_exterior_filename(abs_path.stem, theme)
         if result is None:
-            result = analyze_tile(abs_path, host=host, model=model)
+            result = _call_vision(abs_path)
         if result is None:
             logger.warning("Skipping tile (analysis failed): %s", rel_path)
             continue
+
+        confidence = result.get("confidence")
+        if isinstance(confidence, (int, float)):
+            confidence = max(0.0, min(1.0, float(confidence)))
+        else:
+            confidence = None
 
         tile = {
             "id": tile_id,
@@ -147,12 +189,142 @@ def build_catalog(
             "description": result["description"],
             "semantic_type": result["semantic_type"],
             "tags": result["tags"],
+            "confidence": confidence,
+            "reasoning": result.get("reasoning"),
+            "layer": result.get("layer"),
+            "passable": result.get("passable"),
         }
         tiles[tile_id] = tile
         if on_tile is not None:
             on_tile(tile)
 
+        if monitor is not None:
+            monitor.finish_tile(TileState(
+                path=rel_path, abs_path=str(abs_path), theme=theme,
+                description=result["description"],
+                semantic_type=result["semantic_type"],
+                tags=result["tags"],
+                confidence=confidence,
+                reasoning=result.get("reasoning", ""),
+                layer=result.get("layer", ""),
+                passable=result.get("passable"),
+            ))
+
+    if monitor is not None:
+        monitor.finish_all()
+
     return {"tiles": tiles}
+
+
+def _build_catalog_claude_batch(
+    data_dir: Path,
+    model: str,
+    conn,
+    resolution: int | None = None,
+    limit: int | None = None,
+) -> None:
+    """Analyze tiles with the Claude Batch API.
+
+    Tracks pending batch IDs in ``claude_batches`` so a cancelled run can
+    resume without re-submitting already-dispatched work.
+    """
+    from pixelart_map._claude import _BATCH_SIZE, retrieve_batch_results, submit_batch
+    from pixelart_map.catalog import insert_tile
+
+    # Build tile_id → (abs_path, rel_path, map_type, grid_unit) for all PNGs.
+    pngs = _collect_pngs(data_dir, resolution=resolution)
+    tile_meta: dict[str, tuple[Path, str, str, int]] = {}
+    for abs_path, map_type, grid_unit in pngs:
+        rel_path = abs_path.relative_to(data_dir).as_posix()
+        tile_id = compute_tile_id(rel_path)
+        tile_meta[tile_id] = (abs_path, rel_path, map_type, grid_unit)
+
+    def _write_results(results: dict[str, dict | None]) -> int:
+        written = 0
+        for tile_id, result in tqdm(results.items(), desc="Writing results"):
+            if result is None or tile_id not in tile_meta:
+                continue
+            abs_path, rel_path, map_type, grid_unit = tile_meta[tile_id]
+            with Image.open(abs_path) as img:
+                pixel_width, pixel_height = img.size
+            theme = strip_theme_name(abs_path.parent.name)
+            tile = {
+                "id": tile_id,
+                "path": rel_path,
+                "theme": theme,
+                "map_type": map_type,
+                "grid_unit": grid_unit,
+                "pixel_width": pixel_width,
+                "pixel_height": pixel_height,
+                "description": result["description"],
+                "semantic_type": result["semantic_type"],
+                "tags": result["tags"],
+                "confidence": result.get("confidence"),
+                "reasoning": result.get("reasoning"),
+                "layer": result.get("layer"),
+                "passable": result.get("passable"),
+            }
+            insert_tile(conn, tile)
+            written += 1
+        conn.commit()
+        return written
+
+    # Step 1: Retrieve results from any pending batches left by a previous run.
+    pending = conn.execute(
+        "SELECT batch_id FROM claude_batches WHERE status='pending'"
+    ).fetchall()
+    if pending:
+        print(f"Found {len(pending)} pending batch(es) from a previous run — resuming...")
+    for (batch_id,) in pending:
+        results = retrieve_batch_results(batch_id)
+        count = _write_results(results)
+        conn.execute(
+            "UPDATE claude_batches SET status='done' WHERE batch_id=?", (batch_id,)
+        )
+        conn.commit()
+        print(f"  Batch {batch_id[:12]}: wrote {count} tiles")
+
+    # Step 2: Determine which tiles still need analysis.
+    existing_ids = {row[0] for row in conn.execute("SELECT id FROM tiles")}
+    new_pngs: list[tuple[str, Path]] = []
+    for abs_path, map_type, grid_unit in pngs:
+        rel_path = abs_path.relative_to(data_dir).as_posix()
+        tile_id = compute_tile_id(rel_path)
+        if tile_id not in existing_ids:
+            new_pngs.append((tile_id, abs_path))
+
+    skipped = len(tile_meta) - len(new_pngs)
+    if skipped:
+        print(f"Skipping {skipped:,} already-analyzed tiles")
+
+    if limit is not None:
+        new_pngs = new_pngs[:limit]
+
+    if not new_pngs:
+        print("All tiles already analyzed.")
+        return
+
+    # Step 3: Submit in chunks of _BATCH_SIZE and retrieve each before the next.
+    total_batches = (len(new_pngs) + _BATCH_SIZE - 1) // _BATCH_SIZE
+    total_written = 0
+    for i, batch_start in enumerate(range(0, len(new_pngs), _BATCH_SIZE), 1):
+        chunk = new_pngs[batch_start: batch_start + _BATCH_SIZE]
+        print(f"Submitting batch {i}/{total_batches} ({len(chunk)} tiles)...")
+        batch_id = submit_batch(chunk, model=model)
+        conn.execute("INSERT INTO claude_batches (batch_id) VALUES (?)", (batch_id,))
+        conn.commit()
+        print(f"  Batch {batch_id[:12]} submitted — safe to cancel and resume.")
+
+        results = retrieve_batch_results(batch_id)
+        count = _write_results(results)
+        conn.execute(
+            "UPDATE claude_batches SET status='done' WHERE batch_id=?", (batch_id,)
+        )
+        conn.commit()
+        total_written += count
+        print(f"  Batch {batch_id[:12]}: wrote {count} tiles")
+
+    print(f"Done. {total_written:,} new tiles written to catalog.")
 
 
 def _list_ollama_models(host: str) -> list[str]:
@@ -223,11 +395,47 @@ def main() -> None:
         help="Only analyze tiles at this grid unit size in pixels (default: 48). "
              "Pass 0 to scan all resolutions.",
     )
+    parser.add_argument(
+        "--provider",
+        choices=["ollama", "claude"],
+        default="ollama",
+        help="Vision backend to use: 'ollama' (default, local) or 'claude' (Anthropic API).",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Analyze at most N new tiles, then stop (useful for testing).",
+    )
+    parser.add_argument(
+        "--no-batch",
+        action="store_true",
+        default=False,
+        help="Disable Batch API for Claude provider and use sequential mode instead.",
+    )
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        default=False,
+        help="Launch a live web monitor at http://127.0.0.1:5555",
+    )
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=5555,
+        metavar="PORT",
+        help="Port for the web monitor (default: 5555)",
+    )
     args = parser.parse_args()
-
     host = args.host
-    fallback = os.environ.get("OLLAMA_MODEL", "qwen2.5vl:7b")
-    model = args.model if args.model is not None else _pick_model(host, fallback)
+
+    if args.provider == "claude":
+        fallback = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+        model = args.model if args.model is not None else fallback
+    else:
+        fallback = os.environ.get("OLLAMA_MODEL", "qwen2.5vl:7b")
+        model = args.model if args.model is not None else _pick_model(host, fallback)
 
     data_dir = Path(args.data_dir)
     db_path = Path(args.output)
@@ -243,14 +451,32 @@ def main() -> None:
 
     resolution = args.resolution if args.resolution != 0 else None
 
-    build_catalog(
-        data_dir=data_dir,
-        host=host,
-        model=model,
-        existing_ids=existing_ids,
-        on_tile=_write_tile,
-        resolution=resolution,
-    )
+    monitor = None
+    if args.web:
+        from pixelart_map.web import start_server
+        monitor = start_server(data_dir, port=args.web_port)
+
+    use_batch = args.provider == "claude" and not args.no_batch
+    if use_batch:
+        _build_catalog_claude_batch(
+            data_dir=data_dir,
+            model=model,
+            conn=conn,
+            resolution=resolution,
+            limit=args.limit,
+        )
+    else:
+        build_catalog(
+            data_dir=data_dir,
+            host=host,
+            model=model,
+            existing_ids=existing_ids,
+            on_tile=_write_tile,
+            resolution=resolution,
+            provider=args.provider,
+            limit=args.limit,
+            monitor=monitor,
+        )
 
     total = conn.execute("SELECT COUNT(*) FROM tiles").fetchone()[0]
     conn.close()
