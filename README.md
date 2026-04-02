@@ -90,6 +90,67 @@ result.png_bytes  # PNG-encoded image as bytes
 result.tilemap    # placements with resolved theme/semantic_type/dimensions
 ```
 
+## Data Model
+
+The analyzer builds a SQLite catalog (`catalog.db`) with detailed metadata for every tile. Each tile record is a `TileInfo` object containing:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `id` | str | SHA-256 hash of the tile's relative path; uniquely identifies the tile |
+| `path` | str | Relative path to the PNG file (e.g., `moderninteriors-win/1_Interiors/...`) |
+| `theme` | str | Normalized theme name (e.g., `Classroom_and_Library`) |
+| `map_type` | str | Type of tile: `interior` or `exterior` |
+| `grid_unit` | int | Tile grid size in pixels (e.g., 48) |
+| `pixel_width` | int | Actual PNG width in pixels |
+| `pixel_height` | int | Actual PNG height in pixels |
+| `description` | str | AI-generated description of the tile (e.g., "Wooden door with brown frame") |
+| `semantic_type` | str | Classification: `floor`, `wall`, `furniture`, `decoration`, `terrain`, `prop`, `building`, or `vehicle` |
+| `tags` | list[str] | Keywords for search and filtering (e.g., `["door", "brown", "wood"]`) |
+| `confidence` | float | 0.0–1.0 score indicating how confident the AI is in its classification |
+| `reasoning` | str | *(Optional)* AI's explanation for its classification |
+| `layer` | str | *(Optional)* Rendering layer hint (e.g., `foreground`, `background`) |
+| `passable` | bool | *(Optional)* Whether a game character can walk through this tile |
+
+### Example: Free Sample Tile
+
+The repository includes `data/free_sample.png` as a reference example. If analyzed, it would produce a record like:
+
+```python
+TileInfo(
+    id="a1b2c3d4...",  # SHA-256 of "data/free_sample.png"
+    path="data/free_sample.png",
+    theme="free_sample",
+    map_type="interior",
+    grid_unit=48,
+    pixel_width=48,
+    pixel_height=48,
+    description="Wooden door with brown frame and small window",
+    semantic_type="furniture",
+    tags=["door", "brown", "wood", "window", "entryway"],
+    confidence=0.92,
+    reasoning="This is a game tile depicting an interior door structure. The brown frame and window opening indicate it's a doorway suitable for interior locations.",
+    layer="midground",
+    passable=False,  # Characters cannot walk through a door tile
+)
+```
+
+Query this tile from code:
+
+```python
+from pixelart_map import get_catalog
+
+catalog = get_catalog()
+
+# Find all furniture tiles
+furniture = catalog.tiles_by_semantic_type("furniture")
+
+# Search by keyword
+doors = catalog.search("door")
+
+# Get a specific tile by ID
+tile = catalog.get_tile("a1b2c3d4...")
+```
+
 ## Configuration
 
 | Env var | Default | Purpose |
