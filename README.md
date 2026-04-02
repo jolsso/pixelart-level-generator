@@ -4,13 +4,49 @@ A Python package for cataloging pixel art tile assets and compositing them into 
 
 ## What it does
 
-`pixelart_map` has three responsibilities:
+`pixelart_map` indexes pixel art tile assets into a machine-queryable database, enabling LLM-driven game engines to automatically generate game maps without hardcoding asset paths or visual descriptions. The package has three responsibilities:
 
-1. **Offline analyzer** — scans pixel art tile PNGs using either a local Ollama vision model (Qwen2-VL) or Anthropic's Batch API, produces a `catalog.db` describing every tile
-2. **Catalog API** — query interface over the catalog (filter by theme, map type, semantic type, or free-text search)
+1. **Offline analyzer** — scans pixel art tile PNGs in `data/` using either a local Ollama vision model (Qwen2-VL) or Anthropic's Batch API, produces a `catalog.db` with semantic metadata (description, type, tags, confidence) for every tile
+2. **Catalog API** — query interface over the catalog, allowing machine-to-machine searches by theme, map type, semantic type, or free-text keywords
 3. **Renderer** — composites a list of tile placements into a PNG image using Pillow
 
+**Use case:** Game engines can query the catalog for tiles matching LLM-generated descriptions ("a wooden door", "brown storage furniture") without needing to know filesystem paths or asset pack structure. This enables fully automated map generation workflows.
+
 The package is consumed by a separate game engine that owns all LLM-based map generation, HTTP endpoints, and game state. This package has no HTTP server.
+
+### Example workflow
+
+1. **Index phase** (one-time setup):
+   ```bash
+   pixelart-analyze --data-dir ./data --backend claude
+   ```
+   Produces `catalog.db` with all tiles indexed by semantic properties.
+
+2. **Generation phase** (at runtime):
+   ```python
+   from pixelart_map import get_catalog, render_map
+   
+   catalog = get_catalog()
+   
+   # LLM generates a list of tile descriptions for a bedroom
+   tiles_needed = ["wooden bed", "nightstand", "rug", "window"]
+   
+   # Query catalog for matching tiles
+   placements = []
+   for description in tiles_needed:
+       matches = catalog.search(description)
+       if matches:
+           placements.append({"x": ..., "y": ..., "tile_id": matches[0].id})
+   
+   # Render the composed map
+   result = render_map(
+       grid_width=15, grid_height=15, 
+       placements=placements,
+       data_dir="./data"
+   )
+   ```
+
+This decouples asset discovery from asset paths, enabling fully automated game creation pipelines.
 
 ## Prerequisites
 
