@@ -1,6 +1,14 @@
-# pixelart-level-generator
+# spritedatabase
 
 A Python package for cataloging pixel art tile assets and compositing them into map images.
+
+## Motivation
+
+This project started as an experiment using Claude AI as the central decision-making engine for a game engine. While the concept was promising, I quickly discovered that AI-generated maps using only prompts were visually inconsistent and often nonsensical — the model couldn't reliably translate descriptions into coherent level layouts.
+
+The solution: rather than asking the AI to generate raw maps, **give it a curated database of real pixel art tiles to work with**. By indexing every tile with semantic metadata (what it is, what it's suitable for, placement rules), the AI can now compose maps from actual assets, resulting in much better visual coherence and gameplay quality.
+
+This package handles the indexing: it scans your pixel art assets, runs them through a vision model (Ollama or Claude), builds a machine-queryable catalog, and provides a renderer to composite selected tiles into final map images. The game engine then uses this catalog to make informed placement decisions.
 
 ## What it does
 
@@ -62,14 +70,14 @@ This decouples asset discovery from asset paths, enabling fully automated game c
 ## Installation
 
 ```bash
-pip install git+https://github.com/jolsso/pixelart-level-generator
+pip install git+https://github.com/jolsso/spritedatabase
 ```
 
 For development:
 
 ```bash
-git clone git@github.com:jolsso/pixelart-level-generator.git
-cd pixelart-level-generator
+git clone git@github.com:jolsso/spritedatabase.git
+cd spritedatabase
 pip install -e ".[dev]"
 ```
 
