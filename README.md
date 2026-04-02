@@ -94,6 +94,8 @@ result.tilemap    # placements with resolved theme/semantic_type/dimensions
 
 The analyzer builds a SQLite catalog (`catalog.db`) with detailed metadata for every tile. Each tile record is a `TileInfo` object containing:
 
+> **Quality note:** Tile descriptions and confidence scores depend on the vision model used. Ollama (Qwen2.5-VL) provides good semantic classification but may miss fine details. Claude (Haiku) typically delivers higher accuracy and more detailed reasoning. Experiment with both backends to find the best fit for your use case.
+
 | Field | Type | Purpose |
 |---|---|---|
 | `id` | str | SHA-256 hash of the tile's relative path; uniquely identifies the tile |
@@ -115,7 +117,7 @@ The analyzer builds a SQLite catalog (`catalog.db`) with detailed metadata for e
 
 The repository includes `data/free_sample.png` as a reference example:
 
-![Free Sample Tile - Wooden Door](data/free_sample.png)
+![Free Sample Tile - Wooden Closet](data/free_sample.png)
 
 If analyzed, it would produce a record like:
 
@@ -128,15 +130,21 @@ TileInfo(
     grid_unit=48,
     pixel_width=48,
     pixel_height=48,
-    description="Wooden door with brown frame and small window",
+    description="Wooden closet with brown frame and small door window",
     semantic_type="furniture",
-    tags=["door", "brown", "wood", "window", "entryway"],
-    confidence=0.92,
-    reasoning="This is a game tile depicting an interior door structure. The brown frame and window opening indicate it's a doorway suitable for interior locations.",
+    tags=["closet", "brown", "wood", "storage", "cabinet"],
+    confidence=0.88,
+    reasoning="This is a game tile depicting an interior closet or cabinet structure. The brown wooden frame with a door and small window pane indicate it's a storage furniture piece suitable for interior locations.",
     layer="midground",
-    passable=False,  # Characters cannot walk through a door tile
+    passable=False,  # Characters cannot walk through a closet tile
 )
 ```
+
+**Note on output quality:** The accuracy and confidence scores depend on the vision model used:
+- **Ollama (Qwen2.5-VL)**: Good for semantic classification, may struggle with fine details or ambiguous objects
+- **Claude (Haiku)**: Better overall accuracy and reasoning quality, higher confidence scores
+
+Run the same tile through different models to see how descriptions and confidence vary.
 
 Query this tile from code:
 
@@ -148,8 +156,9 @@ catalog = get_catalog()
 # Find all furniture tiles
 furniture = catalog.tiles_by_semantic_type("furniture")
 
-# Search by keyword
-doors = catalog.search("door")
+# Search by keyword (tags are searchable)
+closets = catalog.search("closet")
+storage = catalog.search("storage")
 
 # Get a specific tile by ID
 tile = catalog.get_tile("a1b2c3d4...")
