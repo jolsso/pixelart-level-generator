@@ -1,7 +1,25 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3:*)"
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(pytest:*)",
+      "Bash(pip:*)",
+      "Bash(git fetch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(mkdir -p /Users/jonas/Projects/pixelart-level-generator/data)",
+      "Bash(touch /Users/jonas/Projects/pixelart-level-generator/data/.gitkeep)",
+      "Bash(git:*)",
+      "Skill(claude-api)",
+      "Skill(commit-commands:commit-push-pr)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Skill(commit-commands:commit)",
+      "Bash(sqlite3:*)"
     ]
+  },
+  "enabledPlugins": {
+    "vercel@claude-plugins-official": false
   }
 }

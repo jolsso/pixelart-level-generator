@@ -17,6 +17,7 @@ The package is consumed by a separate game engine project. The game engine owns 
 ## Prerequisites
 
 - Python ≥ 3.11
+- NVIDIA GPU with ≥ 24 GB VRAM for running Qwen2-VL locally (e.g. RTX 3090). The analyzer is an offline tool and does not need to run on the deployment server.
 - Ollama running locally: `ollama serve`
 - Qwen2-VL model pulled: `ollama pull qwen2-vl`
 - Pixel art assets present at `PIXELART_DATA_DIR` (not committed — deployed via CI/CD)

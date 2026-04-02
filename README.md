@@ -6,7 +6,7 @@ A Python package for cataloging pixel art tile assets and compositing them into 
 
 `pixelart_map` has three responsibilities:
 
-1. **Offline analyzer** — scans pixel art tile PNGs using a local Ollama vision model (Qwen2-VL) and produces a `catalog.json` describing every tile
+1. **Offline analyzer** — scans pixel art tile PNGs using either a local Ollama vision model (Qwen2-VL) or Anthropic's Batch API, produces a `catalog.db` describing every tile
 2. **Catalog API** — query interface over the catalog (filter by theme, map type, semantic type, or free-text search)
 3. **Renderer** — composites a list of tile placements into a PNG image using Pillow
 
@@ -15,12 +15,13 @@ The package is consumed by a separate game engine that owns all LLM-based map ge
 ## Prerequisites
 
 - Python ≥ 3.11
-- For the **analyzer only**: Ollama running locally with `qwen2.5vl:7b` pulled, and pixel art assets present at `PIXELART_DATA_DIR`
-
-```bash
-ollama serve
-ollama pull qwen2.5vl:7b
-```
+- Pixel art assets present at `PIXELART_DATA_DIR`
+- **For `--backend ollama`** (default): Ollama running locally with `qwen2.5vl:7b` pulled
+  ```bash
+  ollama serve
+  ollama pull qwen2.5vl:7b
+  ```
+- **For `--backend claude`**: Set `ANTHROPIC_API_KEY` environment variable with a valid Anthropic API key
 
 ## Installation
 
@@ -40,11 +41,20 @@ pip install -e ".[dev]"
 
 ### Build the catalog (offline, one-time)
 
+Using **Ollama** (default, requires local GPU):
 ```bash
-pixelart-analyze --data-dir ./data --output catalog.json
+pixelart-analyze --data-dir ./data --output catalog.db
 ```
 
-Re-runs are incremental — already-analyzed tiles are skipped.
+Using **Claude Batch API** (requires `ANTHROPIC_API_KEY`):
+```bash
+pixelart-analyze --data-dir ./data --output catalog.db --backend claude
+```
+
+Re-runs are incremental — already-analyzed tiles are skipped. Use `--limit N` to process only N new tiles:
+```bash
+pixelart-analyze --data-dir ./data --backend claude --limit 100
+```
 
 ### Query the catalog
 
@@ -85,9 +95,10 @@ result.tilemap    # placements with resolved theme/semantic_type/dimensions
 | Env var | Default | Purpose |
 |---|---|---|
 | `PIXELART_DATA_DIR` | *(required at render time)* | Root path of the asset folder |
-| `PIXELART_CATALOG_PATH` | `catalog.json` next to package root | Override catalog location |
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `qwen2.5vl:7b` | Vision model for tile analysis |
+| `PIXELART_CATALOG_PATH` | `catalog.db` next to package root | Override catalog location |
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL (for `--backend ollama`) |
+| `OLLAMA_MODEL` | `qwen2.5vl:7b` | Vision model for tile analysis (for `--backend ollama`) |
+| `ANTHROPIC_API_KEY` | *(required for `--backend claude`)* | Anthropic API key for Batch API |
 
 ## Running tests
 
@@ -112,9 +123,17 @@ The pixel art assets are **not included** in this repository and must be purchas
    └── modernexteriors-win/
    ```
 
-3. Run the analyzer to build `catalog.json`:
+3. Run the analyzer to build `catalog.db`. Choose your backend:
+
+   **Using Ollama** (default):
    ```bash
-   pixelart-analyze --data-dir ./data --output catalog.json
+   pixelart-analyze --data-dir ./data --output catalog.db
+   ```
+
+   **Using Claude Batch API**:
+   ```bash
+   export ANTHROPIC_API_KEY="your-api-key-here"
+   pixelart-analyze --data-dir ./data --output catalog.db --backend claude
    ```
 
 ## Asset credits

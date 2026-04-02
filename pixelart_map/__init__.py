@@ -8,7 +8,7 @@ from pixelart_map.renderer import render_map
 
 __all__ = ["get_catalog", "render_map"]
 
-_DEFAULT_CATALOG_PATH = Path(__file__).parent.parent / "catalog.json"
+_DEFAULT_CATALOG_PATH = Path(__file__).parent.parent / "catalog.db"
 
 
 def get_catalog() -> Catalog:

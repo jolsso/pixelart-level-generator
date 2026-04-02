@@ -1,20 +1,28 @@
-import io
 import json
 import pytest
 from pathlib import Path
 from PIL import Image
+from pixelart_map.catalog import open_catalog_db, insert_tile
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 @pytest.fixture
-def sample_catalog_path():
-    return FIXTURES_DIR / "sample_catalog.json"
+def sample_catalog_path(tmp_path):
+    """SQLite catalog with the standard 3 test tiles, built from sample_catalog.json."""
+    data = json.loads((FIXTURES_DIR / "sample_catalog.json").read_text())
+    db_path = tmp_path / "sample_catalog.db"
+    conn = open_catalog_db(db_path)
+    for tile in data["tiles"].values():
+        insert_tile(conn, tile)
+    conn.commit()
+    conn.close()
+    return db_path
 
 
 @pytest.fixture
-def sample_catalog_data(sample_catalog_path):
-    return json.loads(sample_catalog_path.read_text())
+def sample_catalog_data():
+    return json.loads((FIXTURES_DIR / "sample_catalog.json").read_text())
 
 
 @pytest.fixture
@@ -50,9 +58,9 @@ def data_dir(tmp_path):
 
 
 @pytest.fixture
-def catalog_with_png_paths(tmp_path, data_dir, sample_catalog_path):
-    """A catalog.json whose tile paths point to the tmp data_dir fixtures."""
-    data = json.loads(sample_catalog_path.read_text())
+def catalog_with_png_paths(tmp_path, data_dir, sample_catalog_data):
+    """A catalog.db whose tile paths point to the tmp data_dir fixtures."""
+    data = sample_catalog_data
     data["tiles"]["aaaa000000000000000000000000000000000000000000000000000000000001"]["path"] = (
         "moderninteriors-win/1_Interiors/48x48/Theme_Sorter_Shadowless_Singles_48x48"
         "/5_Classroom_and_Library_Singles_Shadowless_48x48/tile_01.png"
@@ -65,6 +73,10 @@ def catalog_with_png_paths(tmp_path, data_dir, sample_catalog_path):
         "modernexteriors-win/Modern_Exteriors_16x16/ME_Theme_Sorter_16x16"
         "/16_Office_Singles_16x16/tile_01.png"
     )
-    catalog_path = tmp_path / "catalog.json"
-    catalog_path.write_text(json.dumps(data))
-    return catalog_path
+    db_path = tmp_path / "catalog.db"
+    conn = open_catalog_db(db_path)
+    for tile in data["tiles"].values():
+        insert_tile(conn, tile)
+    conn.commit()
+    conn.close()
+    return db_path

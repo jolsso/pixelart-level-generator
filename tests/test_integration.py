@@ -3,14 +3,13 @@ Integration tests — full pipeline exercised end-to-end without mocking I/O.
 Ollama is still mocked (no GPU), but all file I/O and module interactions are real.
 """
 import io
-import json
 import pytest
 from pathlib import Path
 from PIL import Image
 from unittest.mock import patch
 
 from pixelart_map.analyzer import build_catalog
-from pixelart_map.catalog import Catalog
+from pixelart_map.catalog import Catalog, open_catalog_db, insert_tile
 from pixelart_map.renderer import render_map, _load_image
 from pixelart_map import get_catalog
 
@@ -34,18 +33,26 @@ def _make_asset_tree(base: Path) -> None:
     Image.new("RGBA", (16, 16), (0, 255, 0, 255)).save(exterior_dir / "building.png")
 
 
-def _fake_analyze(path, host, model):
+def _fake_analyze(path, host, model, **kwargs):
     name = Path(path).stem
     return {"description": f"A {name} tile", "semantic_type": "floor", "tags": [name]}
 
 
+def _write_catalog_db(catalog_data: dict, db_path: Path) -> None:
+    conn = open_catalog_db(db_path)
+    for tile in catalog_data["tiles"].values():
+        insert_tile(conn, tile)
+    conn.commit()
+    conn.close()
+
+
 def test_full_pipeline_analyzer_to_render(tmp_path):
     """
-    Full end-to-end: build_catalog → write catalog.json → Catalog → render_map.
+    Full end-to-end: build_catalog → write catalog.db → Catalog → render_map.
     No real Ollama or GPU needed.
     """
     _make_asset_tree(tmp_path)
-    catalog_path = tmp_path / "catalog.json"
+    db_path = tmp_path / "catalog.db"
 
     # Step 1: run analyzer (Ollama mocked)
     with patch("pixelart_map.analyzer.analyze_tile", side_effect=_fake_analyze):
@@ -53,11 +60,11 @@ def test_full_pipeline_analyzer_to_render(tmp_path):
 
     assert len(catalog_data["tiles"]) == 3
 
-    # Step 2: write catalog to disk
-    catalog_path.write_text(json.dumps(catalog_data, indent=2), encoding="utf-8")
+    # Step 2: write catalog to SQLite
+    _write_catalog_db(catalog_data, db_path)
 
     # Step 3: load via Catalog class
-    catalog = Catalog(catalog_path)
+    catalog = Catalog(db_path)
     assert set(catalog.themes()) == {"Classroom_and_Library", "Office"}
     assert set(catalog.map_types()) == {"interior", "exterior"}
 
@@ -75,12 +82,9 @@ def test_full_pipeline_analyzer_to_render(tmp_path):
         catalog=catalog,
     )
 
-    # Verify PNG is valid and correctly sized
     img = Image.open(io.BytesIO(result.png_bytes))
     assert img.size == (3 * 48, 3 * 48)
     assert img.mode == "RGBA"
-
-    # Verify tilemap metadata
     assert len(result.tilemap) == 1
     assert result.tilemap[0]["theme"] == "Classroom_and_Library"
     assert result.tilemap[0]["tile_id"] == floor_tile.id
@@ -88,7 +92,7 @@ def test_full_pipeline_analyzer_to_render(tmp_path):
 
 def test_incremental_analyzer_does_not_reanalyze(tmp_path):
     """
-    Second build_catalog() call with existing catalog should call analyze_tile
+    Second build_catalog() call with existing IDs should call analyze_tile
     only for new tiles, not for ones already in the catalog.
     """
     _make_asset_tree(tmp_path)
@@ -110,23 +114,22 @@ def test_incremental_analyzer_does_not_reanalyze(tmp_path):
             data_dir=tmp_path,
             host="http://localhost:11434",
             model="qwen2-vl",
-            existing=first,
+            existing_ids=set(first["tiles"].keys()),
         )
-        # Only the new tile should have been analyzed
         assert mock.call_count == 4
-        assert len(second["tiles"]) == 4
+        assert len(second["tiles"]) == 1  # only the new tile returned
 
 
 def test_get_catalog_env_var_points_to_analyzer_output(tmp_path, monkeypatch):
     """get_catalog() loads correctly from a catalog produced by the analyzer."""
     _make_asset_tree(tmp_path)
-    catalog_path = tmp_path / "catalog.json"
+    db_path = tmp_path / "catalog.db"
 
     with patch("pixelart_map.analyzer.analyze_tile", side_effect=_fake_analyze):
         catalog_data = build_catalog(data_dir=tmp_path, host="http://localhost:11434", model="qwen2-vl")
-    catalog_path.write_text(json.dumps(catalog_data), encoding="utf-8")
+    _write_catalog_db(catalog_data, db_path)
 
-    monkeypatch.setenv("PIXELART_CATALOG_PATH", str(catalog_path))
+    monkeypatch.setenv("PIXELART_CATALOG_PATH", str(db_path))
     catalog = get_catalog()
 
     assert len(catalog.themes()) > 0
@@ -140,16 +143,15 @@ def test_render_draw_order_respected(tmp_path):
     at the same coordinates.
     """
     _make_asset_tree(tmp_path)
-    catalog_path = tmp_path / "catalog.json"
+    db_path = tmp_path / "catalog.db"
 
     with patch("pixelart_map.analyzer.analyze_tile", side_effect=_fake_analyze):
         catalog_data = build_catalog(data_dir=tmp_path, host="http://localhost:11434", model="qwen2-vl")
-    catalog_path.write_text(json.dumps(catalog_data), encoding="utf-8")
+    _write_catalog_db(catalog_data, db_path)
 
-    catalog = Catalog(catalog_path)
+    catalog = Catalog(db_path)
     interior_tiles = catalog.tiles_by_map_type("interior")
     tile_a, tile_b = interior_tiles[0], interior_tiles[1]
-    # Only valid if both are 1-cell tiles; pick the 48x48 one for tile_b
     tile_b = next(t for t in interior_tiles if t.pixel_height == 48 and t.id != tile_a.id) \
         if len(interior_tiles) > 1 else tile_a
 
@@ -159,13 +161,12 @@ def test_render_draw_order_respected(tmp_path):
         grid_height=2,
         placements=[
             {"x": 0, "y": 0, "tile_id": tile_a.id},
-            {"x": 0, "y": 0, "tile_id": tile_b.id},  # same cell — overwrites tile_a
+            {"x": 0, "y": 0, "tile_id": tile_b.id},
         ],
         data_dir=str(tmp_path),
         catalog=catalog,
     )
 
-    # Both entries should appear in tilemap (draw order preserved)
     assert len(result.tilemap) == 2
     assert result.tilemap[0]["tile_id"] == tile_a.id
     assert result.tilemap[1]["tile_id"] == tile_b.id
