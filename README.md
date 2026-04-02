@@ -113,7 +113,11 @@ The analyzer builds a SQLite catalog (`catalog.db`) with detailed metadata for e
 
 ### Example: Free Sample Tile
 
-The repository includes `data/free_sample.png` as a reference example. If analyzed, it would produce a record like:
+The repository includes `data/free_sample.png` as a reference example:
+
+![Free Sample Tile - Wooden Door](data/free_sample.png)
+
+If analyzed, it would produce a record like:
 
 ```python
 TileInfo(
@@ -200,3 +204,18 @@ The pixel art assets are **not included** in this repository and must be purchas
 ## Asset credits
 
 Pixel art assets by [LimeZu](https://limezu.itch.io/).
+
+### Free Sample Tile License
+
+The `data/free_sample.png` included in this repository is from LimeZu's free version and is subject to the following restrictions:
+
+**You CAN:**
+- Use the asset in non-commercial projects
+- Edit the sprites and use them in non-commercial projects
+
+**You CANNOT:**
+- Use the asset in commercial projects
+- Edit the sprites and use them in commercial projects
+- Edit and resell the sprites
+
+For full asset packs and commercial licenses, purchase from [LimeZu on itch.io](https://limezu.itch.io/).
